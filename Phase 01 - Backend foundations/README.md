@@ -88,37 +88,50 @@ When contributing, include a short description and example output.
 Demonstrates score input validation (0-100 range), error handling for invalid input, and grade assignment based on score boundaries.
 
 ![Grade Calculator - Valid Score](../screenshots/Screenshot%202026-08-18%20183934.jpg)
+
 ![Grade Calculator - Score Below Range](../screenshots/Screenshot%202026-08-18%20184003.jpg)
+
 ![Grade Calculator - Score Above Range](../screenshots/Screenshot%202026-08-18%20184111.jpg)
+
 ![Grade Calculator - Invalid Input](../screenshots/Screenshot%202026-08-18%20184140.jpg)
 
 ### Login Validator
 Shows username and password validation, failed login attempts tracking, account lock after 3 failed attempts, and successful login for valid credentials.
 
 ![Login Validator - Successful Login](../screenshots/Screenshot%202026-08-18%20184416.jpg)
+
 ![Login Validator - Failed Attempts](../screenshots/Screenshot%202026-08-18%20184534.jpg)
+
 ![Login Validator - Account Locked](../screenshots/Screenshot%202026-08-18%20184622.jpg)
 
 ### Simple ATM Menu
 Menu-driven interface with 4 options (Check Balance, Withdraw, Deposit, Exit). Shows balance checking, withdrawal with error handling, deposit functionality, and error validation.
 
 ![ATM Menu - Check Balance](../screenshots/Screenshot%202026-08-18%20184709.jpg)
+
 ![ATM Menu - Insufficient Balance Error](../screenshots/Screenshot%202026-08-18%20184740.jpg)
+
 ![ATM Menu - Successful Withdrawal](../screenshots/Screenshot%202026-08-18%20184757.jpg)
+
 ![ATM Menu - Invalid Deposit Amount](../screenshots/Screenshot%202026-08-18%20184817.jpg)
+
 ![ATM Menu - Successful Deposit](../screenshots/Screenshot%202026-08-18%20184841.jpg)
 
 ### Password Strength Checker
 Validates password length (minimum 8 characters), checks for uppercase letters, lowercase letters, digits, and special characters. Shows weak vs. strong password indicators.
 
 ![Password Strength Checker - Weak Password](../screenshots/Screenshot%202026-08-18%20184947.jpg)
+
 ![Password Strength Checker - Strong Password](../screenshots/Screenshot%202026-08-18%20185017.jpg)
+
 ![Password Strength Checker - Missing Special Character](../screenshots/Screenshot%202026-08-18%20185043.jpg)
+
 
 ### Frequency Counter
 Accepts space-separated list of numbers, shows error handling for invalid input, displays frequency count of each unique number, and demonstrates input validation and error recovery.
 
 ![Frequency Counter - Empty Input Error](../screenshots/Screenshot%202026-08-18%20185135.jpg)
+
 ![Frequency Counter - Invalid Number Error](../screenshots/Screenshot%202026-08-18%20185209.jpg)
 
 ---
