@@ -7,7 +7,7 @@ namespace Task_01_csharp_drills.Drills
         public static void Run()
         {
             Console.WriteLine("=============================");
-            Console.WriteLine("||     GradeCalculator     ||");
+            Console.WriteLine("||     Grade Calculator     ||");
             Console.WriteLine("=============================\n");
             Console.Write("Enter the score e.g.(0-100):");
 

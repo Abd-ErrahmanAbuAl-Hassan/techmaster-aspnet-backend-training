@@ -54,7 +54,39 @@ When contributing, include a short description and example output.
 
 ---
 
-## Contact
+## Drill Progress
 
-Open an issue in the repository for questions, feedback, or review
-requests.
+| Drill No. | Drill Name | Topic | Status | Notes |
+|---|---|---|---|---|
+| 01 | Temperature Converter | Parsing / Calculation | Done | Handles invalid input |
+| 02 | Grade Calculator | Conditions | Done | Added boundary tests |
+| 03 | Login Validator | Loops / Strings | Done | Max 3 attempts |
+| 04 | Even-Odd Analyzer | Conditions | In Progress | |
+| 05 | Maximum and Minimum Finder | Comparison | In Progress | |
+| 06 | Word Counter | Strings | Not Started | |
+| 07 | Name Formatter | String Manipulation | Not Started | |
+| 08 | Password Strength Checker | Validation | Not Started | |
+| 09 | Shopping Cart Total | Calculation | Not Started | |
+| 10 | Simple ATM Menu | Loops / Conditions | Not Started | |
+| 11 | Duplicate Number Detector | Arrays | Not Started | |
+| 12 | Email Validator | String Validation | Not Started | |
+| 13 | Palindrome Checker | Strings / Logic | Not Started | |
+| 14 | Simple Expense Tracker | Data Structure | Not Started | |
+| 15 | Array Rotation | Arrays | Not Started | |
+| 16 | Frequency Counter | Arrays | Not Started | |
+| 17 | Simple Search Engine | Arrays / Strings | Not Started | |
+| 18 | Number Statistics | Arrays / Math | Not Started | |
+| 19 | Simple Ticket Price Calculator | Conditions / Calculation | Not Started | |
+| 20 | Method Refactoring Challenge | Code Organization | Not Started | |
+
+---
+
+## Required Screenshots
+
+- Grade Calculator
+- Login Validator
+- ATM Menu
+- Password Strength Checker
+- Frequency Counter
+
+---

@@ -56,11 +56,11 @@ namespace Task_01_csharp_drills.Drills
                 {
                     if(i - 1 == 0)
                     {
-                        Console.WriteLine("Account locked. Too many failed attempts.");
+                        Console.WriteLine("Account locked. Too many failed attempts.\n");
                         return;
                     }
                     Console.WriteLine("Invalid username or password.");
-                    Console.WriteLine($"remaining attempt {i - 1}.");
+                    Console.WriteLine($"remaining attempt {i - 1}.\n");
                 }
                 else { Console.WriteLine("Successful login."); break; }
             }
