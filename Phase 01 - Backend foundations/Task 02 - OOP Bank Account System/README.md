@@ -29,6 +29,7 @@ A professional console-based banking system demonstrating enterprise-grade OOP d
 | **UI** | Display, input, output only | `ConsoleMenu.cs` |
 | **Service** | Business logic, orchestration, validation | `BankService.cs` |
 | **Domain** | State protection, business rules | `Models/` |
+| **Validation** | Attributes validation | `Validations/` |
 | **Entry** | Application startup | `Program.cs` |
 
 ### Domain Models
@@ -56,9 +57,6 @@ A professional console-based banking system demonstrating enterprise-grade OOP d
 ---
 
 ## Usage Example
-========================================
-           BANK SYSTEM
-========================================
 
 ====== MAIN MENU ======
 1.	Create Customer Account
