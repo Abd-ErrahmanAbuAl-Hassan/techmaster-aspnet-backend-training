@@ -1,18 +1,6 @@
-# TechMaster Bank System
+# Bank System
 
 A professional console-based banking system demonstrating enterprise-grade OOP design, clean architecture, and domain-driven development principles.
-
-## Quick Start
-
-### Prerequisites
-- .NET 9 SDK or later
-- Visual Studio 2022 or any C# IDE
-
-### Build & Run
-
----
-
-## Features
 
 **Core Operations:**
 - ✅ Create customer accounts with validation
@@ -41,6 +29,7 @@ A professional console-based banking system demonstrating enterprise-grade OOP d
 | **UI** | Display, input, output only | `ConsoleMenu.cs` |
 | **Service** | Business logic, orchestration, validation | `BankService.cs` |
 | **Domain** | State protection, business rules | `Models/` |
+| **Validation** | Attributes validation | `Validations/` |
 | **Entry** | Application startup | `Program.cs` |
 
 ### Domain Models
@@ -68,9 +57,6 @@ A professional console-based banking system demonstrating enterprise-grade OOP d
 ---
 
 ## Usage Example
-========================================
-           BANK SYSTEM
-========================================
 
 ====== MAIN MENU ======
 1.	Create Customer Account
@@ -85,21 +71,21 @@ Choose an option (1-8): 1
 
 ====== CREATE NEW ACCOUNT ====== 
 
-Enter full name: Abdulrahman Mohamed
-Enter email: aboda@gmail.com 
-Enter phone number: 01012341234 
-Enter initial balance: 5000
-Select Account Type:
-1.	Checking
-2.	Savings
-3.	Business
-4.	StudentSavings Enter choice (1-4): 1
+ - Enter full name: Abdulrahman Mohamed
+ - Enter email: aboda@gmail.com 
+ - Enter phone number: 01012341234 
+ - Enter initial balance: 5000
+ - Select Account Type:
+   1.	Checking
+   2.	Savings
+   3.	Business
+   4.	StudentSavings Enter choice (1-4): 1
  
-Account created successfully! 
-Account Number: ACC-876 
-Account Type: Checking 
-Balance: $5,000.00 
-Customer: Abdulrahman Mohamed
+ - Account created successfully! 
+ - Account Number: ACC-876 
+ - Account Type: Checking 
+ - Balance: $5,000.00 
+ - Customer: Abdulrahman Mohamed
 
 
 
@@ -208,12 +194,12 @@ Invalid numeric input → Error: Invalid input.
 
 All scenarios verified:
 
-✅ **Account Creation** - Valid/invalid names, emails, phones, balances
-✅ **Deposits** - Valid/invalid amounts, missing accounts
-✅ **Withdrawals** - Valid/invalid amounts, insufficient funds
-✅ **Transfers** - Valid/invalid source/destination, atomicity
-✅ **Queries** - Account details, transaction history, all accounts
-✅ **Error Handling** - All invalid scenarios caught gracefully
+ ✅ **Account Creation** - Valid/invalid names, emails, phones, balances
+ ✅ **Deposits** - Valid/invalid amounts, missing accounts
+ ✅ **Withdrawals** - Valid/invalid amounts, insufficient funds
+ ✅ **Transfers** - Valid/invalid source/destination, atomicity
+ ✅ **Queries** - Account details, transaction history, all accounts
+ ✅ **Error Handling** - All invalid scenarios caught gracefully
 
 ---
 
@@ -237,25 +223,9 @@ All scenarios verified:
 
 ---
 
-## Design Highlights
-
-### Why Encapsulated Balance?
-Ensures business rules are always enforced. Impossible to create negative balance or skip transaction recording.
-
-### Why Atomic Transfers?
-Prevents partial transfers. Either both accounts update or neither does. System never left in inconsistent state.
-
-### Why Multi-Layer Validation?
-- UI validates input format (not business logic)
-- Service validates business rules (not display logic)
-- Domain validates state constraints (not caller concerns)
-
-Result: Clear separation of concerns, no duplication, maintainable code.
-
-### Why Decimal for Money?
-Floating-point arithmetic has precision errors: `0.1 + 0.2 ≠ 0.3`. Decimal uses base-10, is exact for financial values.
-
-
+---
+**Demo**: https://drive.google.com/file/d/1GPME9NogRuomSJY-McNZOaYcxnYmi4qe/view?usp=drive_link
+---
 ## Summary
 
 This is production-grade code demonstrating:
