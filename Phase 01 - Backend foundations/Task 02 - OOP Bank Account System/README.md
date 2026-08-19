@@ -71,21 +71,21 @@ Choose an option (1-8): 1
 
 ====== CREATE NEW ACCOUNT ====== 
 
- Enter full name: Abdulrahman Mohamed
- Enter email: aboda@gmail.com 
- Enter phone number: 01012341234 
- Enter initial balance: 5000
- Select Account Type:
- 1.	Checking
- 2.	Savings
- 3.	Business
- 4.	StudentSavings Enter choice (1-4): 1
+ - Enter full name: Abdulrahman Mohamed
+ - Enter email: aboda@gmail.com 
+ - Enter phone number: 01012341234 
+ - Enter initial balance: 5000
+ - Select Account Type:
+   1.	Checking
+   2.	Savings
+   3.	Business
+   4.	StudentSavings Enter choice (1-4): 1
  
- Account created successfully! 
- Account Number: ACC-876 
- Account Type: Checking 
- Balance: $5,000.00 
- Customer: Abdulrahman Mohamed
+ - Account created successfully! 
+ - Account Number: ACC-876 
+ - Account Type: Checking 
+ - Balance: $5,000.00 
+ - Customer: Abdulrahman Mohamed
 
 
 
