@@ -1,18 +1,6 @@
-# TechMaster Bank System
+# Bank System
 
 A professional console-based banking system demonstrating enterprise-grade OOP design, clean architecture, and domain-driven development principles.
-
-## Quick Start
-
-### Prerequisites
-- .NET 9 SDK or later
-- Visual Studio 2022 or any C# IDE
-
-### Build & Run
-
----
-
-## Features
 
 **Core Operations:**
 - ✅ Create customer accounts with validation
