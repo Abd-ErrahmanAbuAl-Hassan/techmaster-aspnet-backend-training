@@ -1,4 +1,3 @@
-using System.Reflection.Metadata.Ecma335;
 using Task_02_OOP_Bank_Account_System.BankAccountSystem.Models;
 using Task_02_OOP_Bank_Account_System.BankAccountSystem.Services;
 using Task_02_OOP_Bank_Account_System.BankAccountSystem.Validations;
@@ -217,7 +216,6 @@ namespace Task_02_OOP_Bank_Account_System.BankAccountSystem.UI
             try
             {
                 var transaction = _bankService.Deposit(accountNumber, amount);
-                var account = _bankService.FindAccount(accountNumber);
 
                 Console.WriteLine();
                 DisplaySuccess("Deposit successful!");
@@ -260,7 +258,7 @@ namespace Task_02_OOP_Bank_Account_System.BankAccountSystem.UI
 
             do
             {
-                if (!decimal.TryParse(GetInput("Enter deposit amount: "), out amount) || amount <= 0)
+                if (!decimal.TryParse(GetInput("Enter Withdrawal amount: "), out amount) || amount <= 0)
                 {
                     DisplayError("Invalid amount! Try again");
                     continue;
@@ -269,27 +267,27 @@ namespace Task_02_OOP_Bank_Account_System.BankAccountSystem.UI
             } while (true);
 
             try
-                {
-                    var transaction = _bankService.Withdraw(accountNumber, amount);
+            {
+                var transaction = _bankService.Withdraw(accountNumber, amount);
 
-                    Console.WriteLine();
-                    DisplaySuccess("Withdrawal successful!");
-                    Console.WriteLine($"Amount: {transaction.Amount:C}");
-                    Console.WriteLine($"New Balance: {transaction.BalanceAfterTransaction:C}");
-                    Console.WriteLine($"Date: {transaction.TransactionDate:G}");
-                }
-                catch (InvalidOperationException ex)
-                {
-                    DisplayError(ex.Message);
-                }
-                catch (ArgumentException ex)
-                {
-                    DisplayError(ex.Message);
-                }
-                catch (Exception ex)
-                {
-                    DisplayError(ex.Message);
-                }
+                Console.WriteLine();
+                DisplaySuccess("Withdrawal successful!");
+                Console.WriteLine($"Amount: {transaction.Amount:C}");
+                Console.WriteLine($"New Balance: {transaction.BalanceAfterTransaction:C}");
+                Console.WriteLine($"Date: {transaction.TransactionDate:G}");
+            }
+            catch (InvalidOperationException ex)
+            {
+                DisplayError(ex.Message);
+            }
+            catch (ArgumentException ex)
+            {
+                DisplayError(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                DisplayError(ex.Message);
+            }
 
         }
 
@@ -326,7 +324,7 @@ namespace Task_02_OOP_Bank_Account_System.BankAccountSystem.UI
 
             do
             {
-                if (!decimal.TryParse(GetInput("Enter transfer amount: "), out amount) || amount <=0)
+                if (!decimal.TryParse(GetInput("Enter transfer amount: "), out amount) || amount <= 0)
                 {
                     DisplayError("Invalid amount.");
                     continue;
@@ -446,9 +444,9 @@ namespace Task_02_OOP_Bank_Account_System.BankAccountSystem.UI
                 {
                     Console.WriteLine(
                         $"{transaction.TransactionType,-15} " +
-                        $"{transaction.Amount.ToString("C2"),-15} " +           
-                        $"{transaction.BalanceAfterTransaction.ToString("C2"),-15} " + 
-                        $"{transaction.TransactionDate.ToString("G"),-25}");    
+                        $"{transaction.Amount.ToString("C2"),-15} " +
+                        $"{transaction.BalanceAfterTransaction.ToString("C2"),-15} " +
+                        $"{transaction.TransactionDate.ToString("G"),-25}");
                 }
 
                 Console.WriteLine(new string('═', TOTAL_WIDTH));
