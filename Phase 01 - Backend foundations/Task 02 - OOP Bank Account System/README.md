@@ -223,25 +223,9 @@ All scenarios verified:
 
 ---
 
-## Design Highlights
-
-### Why Encapsulated Balance?
-Ensures business rules are always enforced. Impossible to create negative balance or skip transaction recording.
-
-### Why Atomic Transfers?
-Prevents partial transfers. Either both accounts update or neither does. System never left in inconsistent state.
-
-### Why Multi-Layer Validation?
-- UI validates input format (not business logic)
-- Service validates business rules (not display logic)
-- Domain validates state constraints (not caller concerns)
-
-Result: Clear separation of concerns, no duplication, maintainable code.
-
-### Why Decimal for Money?
-Floating-point arithmetic has precision errors: `0.1 + 0.2 ≠ 0.3`. Decimal uses base-10, is exact for financial values.
-
-
+---
+**Demo**: https://drive.google.com/file/d/1GPME9NogRuomSJY-McNZOaYcxnYmi4qe/view?usp=drive_link
+---
 ## Summary
 
 This is production-grade code demonstrating:
