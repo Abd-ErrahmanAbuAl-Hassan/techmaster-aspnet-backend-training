@@ -29,7 +29,7 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
                 new Product()
                 {
                     ProductId = 2,
-                    Name = " Wireless Mouse",
+                    Name = "Wireless Mouse",
                     Category = "Electronics",
                     Price = 650,
                     StockQuantity = 50,
@@ -73,7 +73,7 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
                 new Product()
                 {
                     ProductId = 6,
-                    Name = " Pen Set",
+                    Name = "Pen Set",
                     Category = "Stationery",
                     Price = 75,
                     StockQuantity = 200,
@@ -84,7 +84,7 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
                 new Product()
                 {
                     ProductId = 7,
-                    Name = " Gaming Keyboard",
+                    Name = "Gaming Keyboard",
                     Category = "Electronics",
                     Price = 2500,
                     StockQuantity = 7,
@@ -264,7 +264,7 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
                     Category = "Electronics",
                     Price = 22000,
                     StockQuantity = 2,
-                    CreatedAt = DateTime.Parse("2026-04-28"),
+                    CreatedAt = DateTime.Parse("2026-08-28"),
                     IsAvailable = true,
                     SupplierName = "TechSupplier"
                 },
@@ -275,7 +275,7 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
                     Category = "Furniture",
                     Price = 15500,
                     StockQuantity = 1,
-                    CreatedAt = DateTime.Parse("2025-08-18"),
+                    CreatedAt = DateTime.Parse("2026-08-18"),
                     IsAvailable = true,
                     SupplierName = "HomeSupplier"
                 },
@@ -286,7 +286,7 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
                     Category = "Stationery",
                     Price = 250,
                     StockQuantity = 35,
-                    CreatedAt = DateTime.Parse("2026-01-12"),
+                    CreatedAt = DateTime.Parse("2026-08-12"),
                     IsAvailable = true,
                     SupplierName = "PaperSupplier"
                 }
@@ -492,6 +492,7 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
         {
             var products = _products.GroupBy(p => p.SupplierName).Select(p => new SupplierReport
             {
+                Name = p.Select(p => p.SupplierName).First(),
                 Count = p.Count(),
                 Stock_Value = p.Sum(s => s.StockQuantity),
                 Avg_Price = p.Average(p => p.Price)
@@ -521,6 +522,7 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
         {
             var products = _products.GroupBy(p => p.SupplierName).Select(p => new CategoryStats
             {
+                Name = p.Select(p=>p.SupplierName).First(),
                 Count = p.Count(),
                 Total_Stock_Value = p.Sum(s => s.StockQuantity),
                 Average = p.Average(p => p.Price),
@@ -557,7 +559,7 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
                 products = products.Where(p => p.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) 
-                                        || p.Category.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                                        || p.Category.Contains(filter.Category ?? "", StringComparison.OrdinalIgnoreCase))
                                         .ToList();
             }
             if (filter.Available is not null)

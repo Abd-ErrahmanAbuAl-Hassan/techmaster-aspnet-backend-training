@@ -2,6 +2,7 @@
 {
     internal class CategoryStats
     {
+        public string Name { get; set; }
         public int Count { get; set; }
         public decimal Average { get; set; }
         public decimal Max_Price { get; set; }
