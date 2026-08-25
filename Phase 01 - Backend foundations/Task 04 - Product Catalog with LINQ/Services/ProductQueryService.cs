@@ -1,4 +1,5 @@
-﻿using Task_04_Product_Catalog_with_LINQ.Models;
+﻿using Task_04_Product_Catalog_with_LINQ.DTOs;
+using Task_04_Product_Catalog_with_LINQ.Models;
 
 namespace Task_04_Product_Catalog_with_LINQ.Services
 {
@@ -289,16 +290,16 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
                     IsAvailable = true,
                     SupplierName = "PaperSupplier"
                 }
-               
+
             };
         }
 
         //LINQ Query 01 - Get All Available Products
         public (bool hasValue, List<Product>? data, string message) GetAvailableProducts()
         {
-            var products = _products.Where(p=> p.IsAvailable).ToList();
+            var products = _products.Where(p => p.IsAvailable).ToList();
 
-            if(products is null || !products.Any())
+            if (products is null || !products.Any())
             {
                 return (false, null, "No products found.");
             }
@@ -310,11 +311,11 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
         //LINQ Query 02 - Filter by Category
         public (bool hasValue, List<Product>? data, string message) FilterByCategory(string searchTerm)
         {
-            if(string.IsNullOrWhiteSpace(searchTerm)) return (false, null,"Search term cannot be Empty.");
+            if (string.IsNullOrWhiteSpace(searchTerm)) return (false, null, "Search term cannot be Empty.");
 
-            var products = _products.Where(p=>p.Category.Equals(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+            var products = _products.Where(p => p.Category.Equals(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
 
-            if(products is null || !products.Any())
+            if (products is null || !products.Any())
             {
                 return (false, null, "No products found.");
             }
@@ -323,19 +324,19 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
         }
 
         //LINQ Query 03 - Filter by Price Range
-        public (bool hasValue, List<Product>? data,string message) FilterByPriceRange(int min , int max)
+        public (bool hasValue, List<Product>? data, string message) FilterByPriceRange(int min, int max)
         {
-            if(min < 0 || max < 0) return (false, null,"Price cannot be negative.");
-            if(min > max) return (false, null,"The minimum price value cannot be greater than the maximum value.");
+            if (min < 0 || max < 0) return (false, null, "Price cannot be negative.");
+            if (min > max) return (false, null, "The minimum price value cannot be greater than the maximum value.");
 
             var products = _products.Where(p => p.Price >= min && p.Price <= max).ToList();
 
             if (products is null || !products.Any())
             {
-                return (false, null,"No products found.");
+                return (false, null, "No products found.");
             }
 
-            return (true, products,"Successful retrival");
+            return (true, products, "Successful retrival");
         }
 
         //LINQ Query 04 - Search by Product Name
@@ -343,7 +344,7 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
         {
             if (string.IsNullOrWhiteSpace(searchTerm)) return (false, null, "Search term cannot be Empty.");
 
-            var products = _products.Where(p => p.Name.Contains(searchTerm,StringComparison.OrdinalIgnoreCase)).ToList();
+            var products = _products.Where(p => p.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
 
             if (products is null || !products.Any())
             {
@@ -380,7 +381,7 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
         }
 
         //LINQ Query 07 - Group Products by Category
-        public (bool hasValue, List<IGrouping<string,Product>>? data, string message) GroupProductsByCategory()
+        public (bool hasValue, List<IGrouping<string, Product>>? data, string message) GroupProductsByCategory()
         {
             var products = _products.GroupBy(p => p.Category).ToList();
 
@@ -393,9 +394,9 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
         }
 
         //LINQ Query 08 - Count Products per Category
-        public (bool hasValue, List<(string,int)>? data, string message) CountProductsPerCategory()
+        public (bool hasValue, List<(string, int)>? data, string message) CountProductsPerCategory()
         {
-            var products = _products.GroupBy(p => p.Category).Select(g=> (Category: g.Key , Count: g.Count())).ToList();
+            var products = _products.GroupBy(p => p.Category).Select(g => (Category: g.Key, Count: g.Count())).ToList();
 
             if (products is null || !products.Any())
             {
@@ -422,6 +423,184 @@ namespace Task_04_Product_Catalog_with_LINQ.Services
             {
                 return (false, null, "No products found.");
             }
+
+            return (true, products, "Successful retrival");
+        }
+
+        //LINQ Query 11 - Top 5 Most Expensive Products
+        public (bool hasValue, List<Product>? data, string message) TopFiveMostExpensiveProducts()
+        {
+            var products = _products.OrderByDescending(p => p.Price).Take(5).ToList();
+
+            if (products is null || !products.Any())
+            {
+                return (false, null, "No products found.");
+            }
+
+            return (true, products, "Successful retrival");
+        }
+
+        //LINQ Query 12 - Low Stock Products
+        public (bool hasValue, List<Product>? data, string message) LowStockProducts()
+        {
+            var products = _products.Where(p => p.StockQuantity <= 5).ToList();
+
+            if (products is null || !products.Any())
+            {
+                return (false, null, "No products found.");
+            }
+
+            return (true, products, "Successful retrival");
+        }
+        //LINQ Query 13 - Out of Stock Products
+        public (bool hasValue, List<Product>? data, string message) OutOfStockProducts()
+        {
+            var products = _products.Where(p => p.StockQuantity == 0 || !p.IsAvailable).ToList();
+
+            if (products is null || !products.Any())
+            {
+                return (false, null, "No products found.");
+            }
+
+            return (true, products, "Successful retrival");
+        }
+        //LINQ Query 14 - Product Summary DTO Projection
+        public (bool hasValue, List<ProductSummary>? data, string message) ProductSummaryDTOProjection()
+        {
+            var products = _products.Select(p => new ProductSummary
+            {
+                ProductId = p.ProductId,
+                Name = p.Name,
+                Price = p.Price,
+                Category = p.Category,
+                CreatedAt = p.CreatedAt,
+                IsAvailable = p.IsAvailable,
+                StockQuantity = p.StockQuantity,
+                SupplierName = p.SupplierName,
+
+            }).ToList();
+
+            if (products is null || !products.Any())
+            {
+                return (false, null, "No products found.");
+            }
+
+            return (true, products, "Successful retrival");
+        }
+        //LINQ Query 15 - Supplier Report
+        public (bool hasValue, List<SupplierReport>? data, string message) SupplierReport()
+        {
+            var products = _products.GroupBy(p => p.SupplierName).Select(p => new SupplierReport
+            {
+                Count = p.Count(),
+                Stock_Value = p.Sum(s => s.StockQuantity),
+                Avg_Price = p.Average(p => p.Price)
+            }).ToList();
+
+            if (products is null || !products.Any())
+            {
+                return (false, null, "No products found.");
+            }
+
+            return (true, products, "Successful retrival");
+        }
+        //LINQ Query 16 - Recently Added Products
+        public (bool hasValue, List<Product>? data, string message) RecentlyAddedProducts()
+        {
+            var products = _products.Where(p => p.CreatedAt >= DateTime.Today.AddDays(-15)).ToList();
+
+            if (products is null || !products.Any())
+            {
+                return (false, null, "No products found.");
+            }
+
+            return (true, products, "Successful retrival");
+        }
+        //LINQ Query 17 - Category Statistics
+        public (bool hasValue, List<CategoryStats>? data, string message) CategoryStatistics()
+        {
+            var products = _products.GroupBy(p => p.SupplierName).Select(p => new CategoryStats
+            {
+                Count = p.Count(),
+                Total_Stock_Value = p.Sum(s => s.StockQuantity),
+                Average = p.Average(p => p.Price),
+                Max_Price = p.Max(p => p.Price),
+                Min_Price = p.Min(p => p.Price),
+
+            }).ToList();
+
+            if (products is null || !products.Any())
+            {
+                return (false, null, "No products found.");
+            }
+
+            return (true, products, "Successful retrival");
+        }
+        //LINQ Query 18 - Products Above Average Price
+        public (bool hasValue, List<Product>? data, string message) ProductsAboveAveragePrice()
+        {
+            var avgPrice = _products.Average(p => p.Price);
+            var products = _products.Where(p => p.Price >= avgPrice).ToList();
+
+            if (products is null || !products.Any())
+            {
+                return (false, null, "No products found.");
+            }
+
+            return (true, products, "Successful retrival");
+        }
+        //LINQ Query 19 - Search + Filter Combined
+        public (bool hasValue, List<Product>? data, string message) SearchAndFilter(string searchTerm, ProductFilter filter)
+        {
+            var products = _products.ToList();
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                products = products.Where(p => p.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) 
+                                        || p.Category.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                                        .ToList();
+            }
+            if (filter.Available is not null)
+            {
+                products = products.Where(p => p.IsAvailable == filter.Available).ToList();
+            }
+
+            if (filter.MinPrice is not null)
+            {
+                products = products.Where(p => p.Price >= filter.MinPrice).OrderBy(p => p.Price).ToList();
+            }
+
+            if (filter.MaxPrice is not null)
+            {
+                products = products.Where(p => p.Price <= filter.MaxPrice).OrderByDescending(p => p.Price).ToList();
+            }
+            if (!string.IsNullOrWhiteSpace(filter.Category ))
+            {
+                products = products.Where(p => p.Category == filter.Category).ToList();
+            }
+
+            if (products is null || !products.Any())
+            {
+                return (false, null, "No products found.");
+            }
+
+            return (true, products, "Successful retrival");
+        }
+        //LINQ Query 20 - Pagination Simulation
+        public (bool hasValue, List<Product>? data, string message) PaginationSimulation(int pageNumber = 1, int pageSize = 10)
+        {
+            if (pageNumber < 1 || pageSize < 1)
+            {
+                return (false, null, "Page number and size must be greater than 0.");
+            }
+
+            var products = _products.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+
+            if (products is null || !products.Any())
+            {
+                return (false, null, "No products found.");
+            }
+
 
             return (true, products, "Successful retrival");
         }
