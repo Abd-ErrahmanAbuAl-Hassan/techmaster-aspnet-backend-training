@@ -1,0 +1,6 @@
+@Task_00___API_Workspace_Setup_HostAddress = http://localhost:5036
+
+GET {{Task_00___API_Workspace_Setup_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
