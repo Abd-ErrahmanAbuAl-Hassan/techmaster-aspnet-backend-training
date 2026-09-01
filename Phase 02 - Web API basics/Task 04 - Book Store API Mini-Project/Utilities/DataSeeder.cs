@@ -1,5 +1,5 @@
 using BookStoreApi.DTOs;
-using BookStoreApi.Services;
+using Task_04___Book_Store_API_Mini_Project.Services.Repositories;
 
 namespace BookStoreApi.Utilities
 {
@@ -12,13 +12,8 @@ namespace BookStoreApi.Utilities
             var categoryService = scope.ServiceProvider.GetRequiredService<ICategoryService>();
             var bookService = scope.ServiceProvider.GetRequiredService<IBookService>();
 
-            // Seed Categories
             SeedCategories(categoryService);
-
-            // Seed Authors
             SeedAuthors(authorService);
-
-            // Seed Books
             SeedBooks(bookService);
         }
 
@@ -65,33 +60,33 @@ namespace BookStoreApi.Utilities
             {
                 new CreateAuthorRequest
                 {
-                    FullName = "J.K. Rowling",
-                    Country = "United Kingdom",
-                    BirthDate = new DateTime(1965, 7, 31)
+                    FullName = "A. M. Abulhassan",
+                    Country = "EGYPT",
+                    BirthDate = new DateTime(2003, 04, 22)
                 },
                 new CreateAuthorRequest
                 {
-                    FullName = "George R. R. Martin",
-                    Country = "United States",
-                    BirthDate = new DateTime(1948, 9, 20)
+                    FullName = "A. Mohamed",
+                    Country = "EGYPT",
+                    BirthDate = new DateTime(2003, 5, 20)
                 },
                 new CreateAuthorRequest
                 {
-                    FullName = "Isaac Asimov",
-                    Country = "United States",
-                    BirthDate = new DateTime(1920, 1, 2)
+                    FullName = "A. Khater",
+                    Country = "EGYPT",
+                    BirthDate = new DateTime(2003, 5, 2)
                 },
                 new CreateAuthorRequest
                 {
-                    FullName = "Agatha Christie",
-                    Country = "United Kingdom",
-                    BirthDate = new DateTime(1890, 1, 15)
+                    FullName = "H. Mohamed",
+                    Country = "EGYPT",
+                    BirthDate = new DateTime(2006, 2, 11)
                 },
                 new CreateAuthorRequest
                 {
-                    FullName = "Robert C. Martin",
-                    Country = "United States",
-                    BirthDate = new DateTime(1952, 12, 5)
+                    FullName = "M. M. Khudair",
+                    Country = "EGYPT",
+                    BirthDate = new DateTime(2003, 3, 5)
                 }
             };
 
@@ -127,7 +122,7 @@ namespace BookStoreApi.Utilities
                 },
                 new CreateBookRequest
                 {
-                    Title = "A Game of Thrones",
+                    Title = "Interstellar",
                     ISBN = "9780553103540",
                     PublishedYear = 1996,
                     Price = 34.99m,

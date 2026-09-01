@@ -28,6 +28,28 @@ namespace BookStoreApi.Utilities
 
             return errors;
         }
+        public static List<string> ValidateUpdateBook(UpdateBookRequest request)
+        {
+            var errors = new List<string>();
+
+
+            if (request.Price.HasValue && request.Price <= 0)
+                errors.Add("Price must be positive");
+
+            if (request.StockQuantity.HasValue && request.StockQuantity < 0)
+                errors.Add("Stock quantity cannot be negative");
+
+            if (request.AuthorId.HasValue && request.AuthorId <= 0)
+                errors.Add("Author ID must be valid");
+
+            if (request.CategoryId.HasValue && request.CategoryId <= 0)
+                errors.Add("Category ID must be valid");
+
+            if(request.PublishedYear.HasValue && request.PublishedYear <= 0 && request.PublishedYear > DateTime.Now.Year)
+                errors.Add("Publish year must be valid");
+
+            return errors;
+        }
 
         public static List<string> ValidateCreateAuthor(CreateAuthorRequest request)
         {

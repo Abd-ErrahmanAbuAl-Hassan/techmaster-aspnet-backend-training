@@ -1,8 +1,9 @@
 using BookStoreApi.DTOs;
 using BookStoreApi.Models;
 using BookStoreApi.Utilities;
+using Task_04___Book_Store_API_Mini_Project.Services.Repositories;
 
-namespace BookStoreApi.Services
+namespace Task_04___Book_Store_API_Mini_Project.Services.Implementations
 {
     public class AuthorService : IAuthorService
     {
@@ -13,16 +14,14 @@ namespace BookStoreApi.Services
         {
             try
             {
-                var authorResponses = _authors
-                    .Select(a => new AuthorResponse
-                    {
-                        AuthorId = a.AuthorId,
-                        FullName = a.FullName,
-                        Country = a.Country,
-                        BirthDate = a.BirthDate,
-                        CreatedAt = a.CreatedAt
-                    })
-                    .ToList();
+                var authorResponses = _authors .Select(a => new AuthorResponse
+                                               {
+                                                   AuthorId = a.AuthorId,
+                                                   FullName = a.FullName,
+                                                   Country = a.Country,
+                                                   BirthDate = a.BirthDate,
+                                                   CreatedAt = a.CreatedAt
+                                               }).ToList();
 
                 return Result<List<AuthorResponse>>.SuccessResult(authorResponses, "Authors retrieved successfully");
             }

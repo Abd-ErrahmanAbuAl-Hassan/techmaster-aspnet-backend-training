@@ -2,7 +2,7 @@ using BookStoreApi.DTOs;
 using BookStoreApi.Models;
 using BookStoreApi.Utilities;
 
-namespace BookStoreApi.Services
+namespace Task_04___Book_Store_API_Mini_Project.Services.Repositories
 {
     public interface IAuthorService
     {

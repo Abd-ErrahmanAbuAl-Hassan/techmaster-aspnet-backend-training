@@ -1,8 +1,9 @@
 using BookStoreApi.DTOs;
 using BookStoreApi.Models;
 using BookStoreApi.Utilities;
+using Task_04___Book_Store_API_Mini_Project.Services.Repositories;
 
-namespace BookStoreApi.Services
+namespace Task_04___Book_Store_API_Mini_Project.Services.Implementations
 {
     public class BookService : IBookService
     {
@@ -82,15 +83,12 @@ namespace BookStoreApi.Services
                 if (errors.Count > 0)
                     return Result<BookResponse>.FailureResult("Validation failed", errors);
 
-                // Check for duplicate ISBN
                 if (_books.Any(b => b.ISBN.Equals(request.ISBN, StringComparison.OrdinalIgnoreCase)))
                     return Result<BookResponse>.FailureResult("Duplicate ISBN", "A book with this ISBN already exists");
 
-                // Verify author exists
                 if (!_authorService.AuthorExists(request.AuthorId))
                     return Result<BookResponse>.FailureResult("Invalid author", $"Author with ID {request.AuthorId} does not exist");
 
-                // Verify category exists and is active
                 if (!_categoryService.CategoryExists(request.CategoryId))
                     return Result<BookResponse>.FailureResult("Invalid category", $"Category with ID {request.CategoryId} does not exist");
 
@@ -130,10 +128,8 @@ namespace BookStoreApi.Services
                 if (book == null)
                     return Result<BookResponse>.FailureResult("Book not found", $"Book with ID {id} does not exist");
 
-                var errors = ValidationHelper.ValidateCreateBook(new CreateBookRequest
+                var errors = ValidationHelper.ValidateUpdateBook(new UpdateBookRequest
                 {
-                    Title = request.Title,
-                    ISBN = request.ISBN,
                     PublishedYear = request.PublishedYear,
                     Price = request.Price,
                     StockQuantity = request.StockQuantity,
@@ -144,29 +140,29 @@ namespace BookStoreApi.Services
                 if (errors.Count > 0)
                     return Result<BookResponse>.FailureResult("Validation failed", errors);
 
-                // Check for duplicate ISBN (excluding current book)
-                if (_books.Any(b => b.BookId != id && b.ISBN.Equals(request.ISBN, StringComparison.OrdinalIgnoreCase)))
+                if (request.ISBN != null && _books.Any(b => b.BookId != id && b.ISBN.Equals(request.ISBN, StringComparison.OrdinalIgnoreCase)))
                     return Result<BookResponse>.FailureResult("Duplicate ISBN", "A book with this ISBN already exists");
 
-                // Verify author exists
-                if (!_authorService.AuthorExists(request.AuthorId))
+                if (request.AuthorId != null && !_authorService.AuthorExists(request.AuthorId.Value))
                     return Result<BookResponse>.FailureResult("Invalid author", $"Author with ID {request.AuthorId} does not exist");
 
-                // Verify category exists and is active
-                if (!_categoryService.CategoryExists(request.CategoryId))
+                if (request.CategoryId != null && !_categoryService.CategoryExists(request.CategoryId.Value))
                     return Result<BookResponse>.FailureResult("Invalid category", $"Category with ID {request.CategoryId} does not exist");
 
-                if (!_categoryService.IsCategoryActive(request.CategoryId))
+                if (request.CategoryId != null && !_categoryService.IsCategoryActive(request.CategoryId.Value))
                     return Result<BookResponse>.FailureResult("Inactive category", "Cannot update book to inactive category");
 
-                book.Title = request.Title;
-                book.ISBN = request.ISBN;
-                book.PublishedYear = request.PublishedYear;
-                book.Price = request.Price;
-                book.StockQuantity = request.StockQuantity;
-                book.AuthorId = request.AuthorId;
-                book.CategoryId = request.CategoryId;
-                book.IsAvailable = request.StockQuantity > 0;
+                if (request.Title != null) book.Title = request.Title;
+                if (request.ISBN != null) book.ISBN = request.ISBN;
+                if (request.PublishedYear != null) book.PublishedYear = request.PublishedYear.Value;
+                if (request.Price != null) book.Price = request.Price.Value;
+                if (request.AuthorId != null) book.AuthorId = request.AuthorId.Value;
+                if (request.CategoryId != null) book.CategoryId = request.CategoryId.Value;
+                if (request.StockQuantity != null)
+                {
+                    book.StockQuantity = request.StockQuantity.Value;
+                    book.IsAvailable = request.StockQuantity > 0;
+                }
 
                 var response = MapBookToResponse(book);
                 return Result<BookResponse>.SuccessResult(response, "Book updated successfully");
@@ -206,7 +202,6 @@ namespace BookStoreApi.Services
                     TotalInventoryValue = _books.Sum(b => b.Price * b.StockQuantity)
                 };
 
-                // Books per category
                 var categories = _books
                     .GroupBy(b => b.CategoryId)
                     .ToDictionary(
@@ -216,7 +211,6 @@ namespace BookStoreApi.Services
 
                 summary.BooksByCategory = categories;
 
-                // Books per author
                 var authors = _books
                     .GroupBy(b => b.AuthorId)
                     .ToDictionary(

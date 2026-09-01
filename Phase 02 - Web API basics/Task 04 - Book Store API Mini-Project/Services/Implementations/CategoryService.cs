@@ -1,8 +1,9 @@
 using BookStoreApi.DTOs;
 using BookStoreApi.Models;
 using BookStoreApi.Utilities;
+using Task_04___Book_Store_API_Mini_Project.Services.Repositories;
 
-namespace BookStoreApi.Services
+namespace Task_04___Book_Store_API_Mini_Project.Services.Implementations
 {
     public class CategoryService : ICategoryService
     {
@@ -13,15 +14,13 @@ namespace BookStoreApi.Services
         {
             try
             {
-                var categoryResponses = _categories
-                    .Select(c => new CategoryResponse
-                    {
-                        CategoryId = c.CategoryId,
-                        Name = c.Name,
-                        Description = c.Description,
-                        IsActive = c.IsActive
-                    })
-                    .ToList();
+                var categoryResponses = _categories.Select(c => new CategoryResponse
+                                                   {
+                                                       CategoryId = c.CategoryId,
+                                                       Name = c.Name,
+                                                       Description = c.Description,
+                                                       IsActive = c.IsActive
+                                                   }).ToList();
 
                 return Result<List<CategoryResponse>>.SuccessResult(categoryResponses, "Categories retrieved successfully");
             }
