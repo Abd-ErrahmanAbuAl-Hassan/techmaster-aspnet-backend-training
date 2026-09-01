@@ -122,7 +122,8 @@ namespace Task_03_Products_Categories_API.Services
         }
         public Result<Category> Delete(Guid id)
         {
-            if (!_categories.Exists(c => c.Id == id))
+            var category = _categories.FirstOrDefault(c => c.Id == id);
+            if (category == null)
             {
                 return new Result<Category>
                 {
@@ -133,6 +134,8 @@ namespace Task_03_Products_Categories_API.Services
                 };
             }
 
+            category.IsActive = false;
+            _categories[_categories.IndexOf(category)] = category;
             return new Result<Category> { Success = true, Message = "Category deleted successfully." };
         }
         public Result<List<Category>> GetAllCategories(CFilter filter)

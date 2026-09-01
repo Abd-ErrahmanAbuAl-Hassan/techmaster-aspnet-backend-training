@@ -1,487 +1,270 @@
+# 🛒 Products & Categories API
 
-# Student Management API
+A RESTful Web API built with **ASP.NET Core** for managing a product catalog organized into categories. The project follows a clean, layered architecture (Controllers → Services → In-Memory Data Store), with rich filtering/pagination, business-rule validation, and a dedicated catalog service that composes categories together with their products.
 
-## 📋 Project Summary
+---
 
-**Task 02 - Student Management API** is an ASP.NET Core Web API built with .NET 9 that provides complete CRUD operations for managing student records. The API handles student creation, retrieval, updating, status management, and deletion with comprehensive validation and error handling.
+## 📖 Table of Contents
 
-### Key Features
-- ✅ Create new student records with validation
-- ✅ Retrieve all students with pagination support
-- ✅ Get individual student details by ID
-- ✅ Update student information
-- ✅ Update student status (Active/Inactive)
-- ✅ Delete student records
-- ✅ Retrieve student statistics
-- ✅ Filter and paginate student lists
-- ✅ Comprehensive error handling with meaningful responses
-- ✅ Swagger/OpenAPI documentation
+- [Features](#-features)
+- [Project Structure](#-project-structure)
+- [Tech Stack](#-tech-stack)
+- [Getting Started](#-getting-started)
+- [API Endpoints](#-api-endpoints)
+- [Sample Requests](#-sample-requests)
+- [Response Format](#-response-format)
+- [Data Seeding](#-data-seeding)
+- [Screenshots](#-screenshots)
+- [Notes](#-notes)
+
+---
+
+## ✨ Features
+
+- **CRUD operations** for Products and Categories
+- **Catalog view** — categories enriched with their related products (`CatalogService`)
+- **Search & Filtering**
+  - Categories: by name/description, active status
+  - Products: by name/supplier, category, price range, availability, low-stock threshold
+- **Pagination** on both category and product listings
+- **Business rule validation**, e.g.:
+  - Unique category names
+  - Valid, existing category reference on product create/update
+  - Price must be positive, stock quantity cannot be negative
+  - Conflict protection when re-applying the same active/inactive status to a category
+- **Stock report endpoint** — total stock value, per-category breakdown, low-stock and out-of-stock listings
+- **Consistent API responses** via a generic `Result<T>` wrapper (`Success`, `Message`, `Data`, `Errors`, `ErrorCode`)
+- **Initial data seeding** for categories and products on startup
+
+---
+
+## 🗂 Project Structure
+
+```
+task-03-products-categories-api/
+├── README.md
+├── Task_03_Products_Categories_API/
+│   ├── Controllers/
+│   │   ├── CategoriesController.cs
+│   │   └── ProductsController.cs
+│   ├── Entities/
+│   │   ├── Category.cs
+│   │   └── Product.cs
+│   ├── DTOs/
+│   │   ├── CreateCategoryRequest.cs
+│   │   ├── UpdateCategoryRequest.cs
+│   │   ├── CategoryResponse.cs
+│   │   ├── CreateProductRequest.cs
+│   │   ├── UpdateProductRequest.cs
+│   │   ├── ProductResponse.cs
+│   │   └── StockReportDto.cs (+ CategoryStockDto, LowStockProductDto, StockValueDto)
+│   ├── Services/
+│   │   ├── CategoryService.cs
+│   │   ├── ProductService.cs
+│   │   └── CatalogService.cs
+│   ├── Utilities/
+│   │   ├── Result.cs
+│   │   ├── CFilter.cs
+│   │   └── PFilter.cs
+│   └── Program.cs
+```
+
+---
+
+## 🛠 Tech Stack
+
+- **.NET / ASP.NET Core Web API**
+- **C#**
+- In-memory data store (static collections — no database required)
+- Swagger / OpenAPI for interactive API testing
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- .NET 9 SDK or later
-- Visual Studio 2022 (recommended)
-- Postman or any REST client (optional, for manual testing)
 
-### Installation
-1. Clone the repository:
+- [.NET SDK](https://dotnet.microsoft.com/download) (9.0 or later recommended)
+- An IDE such as Visual Studio, Visual Studio Code, or JetBrains Rider
 
-   git clone https://github.com/Abd-ErrahmanAbuAl-Hassan/techmaster-aspnet-backend-training.git
-   cd Task_02___Student_Management_API
+### Installation & Run
 
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/<your-username>/task-03-products-categories-api.git
+   cd task-03-products-categories-api/Task_03_Products_Categories_API
+   ```
 
-2. Restore NuGet packages:
-
+2. **Restore dependencies**
+   ```bash
    dotnet restore
+   ```
 
-
-3. Run the application:
-
+3. **Run the application**
+   ```bash
    dotnet run
+   ```
 
+4. **Open the API documentation (Swagger UI)**
+   ```
+   https://localhost:<port>/swagger
+   ```
 
-4. The API willbe available at:
-- **HTTP**: `https://localhost:5001`
-   - **Swagger UI**: `https://localhost:5001/swagger`
-
----
-
-## 📡 API Routes & Endpoints
-
-### Base URL
-
-https://localhost:5001/api/students
-
-
-
-### 1. Create Student
-**POST** `/api/students/create`
-
-Creates a new student record.
-
-**Request Body:**
-
-{
-  "fName": "Ahmed",
-  "lName": "Hassan",
-  "email": "ahmed@example.com",
-  "phoneNumber": "01012345678",
-  "trackName": "Backend Development",
-  "linkedInURL": "https://linkedin.com/in/ahmed",
-  "githubURL": "https://github.com/ahmed"
-}
-
-
-**Response (201 Created):**
-
-{
-  "success": true,
-  "message": "Student created successfully",
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "fName": "Ahmed",
-    "lName": "Hassan",
-    "fullName": "Ahmed Hassan",
-    "email": "ahmed@example.com",
-    "phoneNumber": "01012345678",
-    "trackName": "Backend Development",
-    "linkedInURL": "https://linkedin.com/in/ahmed",
-    "githubURL": "https://github.com/ahmed",
-    "enrollmentDate": "2026-08-28T10:30:00",
-    "isActive": true
-  },
-  "errors": null,
-  "errorCode": 0
-}
-
-
-**Validation Rules:**
-- First Name: Required, non-empty
-- Last Name: Required, non-empty
-- Email: Required, valid email format
-- Phone Number: Required, Egyptian phone format (01X + 8 digits)
-- Track Name: Required, non-empty
+> On startup, the application automatically seeds 4 categories and 15 products via each service's internal seed method.
 
 ---
 
-### 2. Get All Students
-**GET** `/api/students/all`
+## 📡 API Endpoints
 
-Retrieves all students with optional pagination and filtering.
+### Categories — `/api/categories`
 
-**Query Parameters:**
-- `page` (optional): Page number (starts at 1)
-- `pageSize` (optional): Number of records per page (max 50)
+| Method | Endpoint               | Description                                          |
+|--------|--------------------------|--------------------------------------------------------|
+| GET    | `/api/categories`       | Get all categories, each enriched with its products    |
+| GET    | `/api/categories/{id}`  | Get a single category (with its products) by ID        |
+| POST   | `/api/categories`       | Create a new category                                   |
+| PUT    | `/api/categories/{id}`  | Update a category (name, description, active status)    |
+| DELETE | `/api/categories/{id}`  | Delete category by ID (Soft Delete)                     |
 
-**Example Requests:**
+#### `GET /api/categories` Query Parameters
 
-/api/students/all
-/api/students/all?page=1&pageSize=10
+| Parameter    | Type    | Description                          |
+|--------------|---------|----------------------------------------|
+| `Page`       | int     | Page number                            |
+| `PageSize`   | int     | Items per page (max 50)                |
+| `SearchTerm` | string  | Searches category name and description |
+| `IsActive`   | bool    | Filter by active status                |
 
+### Products — `/api/products`
 
-**Response (200 OK):**
+| Method | Endpoint                    | Description                             |
+|--------|--------------------------------|--------------------------------------------|
+| GET    | `/api/products`                | Get all products (search, filter, paginate) |
+| GET    | `/api/products/{id}`           | Get product by ID                            |
+| POST   | `/api/products`                | Create a new product                          |
+| PUT    | `/api/products/{id}`           | Update an existing product                     |
+| DELETE | `/api/products/{id}`           | Delete product by ID                             |
+| GET    | `/api/products/reports/stock`  | Get stock report (default `lowStockThreshold=10`) |
 
-{
-  "success": true,
-  "message": "Students retrieved successfully",
-  "data": [
-    {
-      "fullName": "Ahmed Hassan",
-      "email": "ahmed@example.com",
-      "phoneNumber": "01012345678",
-      "trackName": "Backend Development",
-      "linkedInURL": "https://linkedin.com/in/ahmed",
-      "githubURL": "https://github.com/ahmed",
-      "enrollmentDate": "2026-08-28T10:30:00",
-      "isActive": true
-    }
-  ],
-  "errors": null,
-  "errorCode": 0
-}
+#### `GET /api/products` Query Parameters
 
+| Parameter            | Type    | Description                                   |
+|-----------------------|---------|--------------------------------------------------|
+| `Page`                | int     | Page number                                       |
+| `PageSize`            | int     | Items per page (max 50)                           |
+| `SearchTerm`          | string  | Searches product name and supplier name            |
+| `Category`            | string  | Filter by category name                             |
+| `MinPrice`/`MaxPrice` | int     | Filter by price range                               |
+| `LowStockThreshold`   | int     | Filter products at or below this stock level        |
+| `IsAvilable`          | bool    | Filter by availability status                        |
 
 ---
 
-### 3. Get Student by ID
-**GET** `/api/students/{id}`
+## 🔍 Sample Requests
 
-Retrieves a specific student by their ID.
+**Create a category**
+```http
+POST /api/categories
+Content-Type: application/json
 
-**Path Parameter:**
-- `id` (required): Student GUID
+{
+  "name": "Electronics",
+  "description": "Everything that works with electricity."
+}
+```
 
-**Example Request:**
+**Create a product**
+```http
+POST /api/products
+Content-Type: application/json
 
-/api/students/550e8400-e29b-41d4-a716-446655440000
+{
+  "name": "Laptop",
+  "price": 45000,
+  "stockQuantity": 5,
+  "supplierName": "TechSupplier",
+  "categoryId": "5c6b9f3e-1234-4a2b-9c3d-abcdef123456"
+}
+```
 
+**Search and filter products**
+```http
+GET /api/products?searchTerm=laptop&category=Electronics&minPrice=1000&maxPrice=50000&page=1&pageSize=5
+```
 
+**Get the stock report**
+```http
+GET /api/products/reports/stock?lowStockThreshold=15
+```
 
-**Response (200 OK):**
+---
 
+## 📦 Response Format
+
+All endpoints return a consistent response shape using the `Result<T>` wrapper:
+
+**Success**
+```json
 {
   "success": true,
-  "message": "Student retrieved successfully",
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "fName": "Ahmed",
-    "lName": "Hassan",
-    "fullName": "Ahmed Hassan",
-    "email": "ahmed@example.com",
-    "phoneNumber": "01012345678",
-    "trackName": "Backend Development",
-    "enrollmentDate": "2026-08-28T10:30:00",
-    "isActive": true
-  },
+  "message": "Successfully retrieve (15) products.",
   "errors": null,
+  "data": { },
   "errorCode": 0
 }
+```
 
-
----
-
-### 4. Get Student Statistics
-**GET** `/api/students/stats`
-
-Retrieves statistics about students in the system.
-
-**Response (200 OK):**
-
-{
-  "success": true,
-  "message": "Statistics retrieved successfully",
-  "data": {
-    "totalStudents": 5,
-    "activeStudents": 4,
-    "inactiveStudents": 1,
-    "byTrack": {
-      "Backend Development": 3,
-      "Frontend Development": 2
-    }
-  },
-  "errors": null,
-  "errorCode": 0
-}
-
-
----
-
-### 5. Update Student
-**PUT** `/api/students/{id}`
-
-Updates an existing student's information.
-
-**Path Parameter:**
-- `id` (required): Student GUID
-
-**Request Body:**
-
-{
-  "fName": "Ahmed",
-  "lName": "Hassan",
-  "email": "newemail@example.com",
-  "phoneNumber": "01098765432",
-  "trackName": "Full Stack Development",
-  "linkedInURL": "https://linkedin.com/in/ahmed-new",
-  "githubURL": "https://github.com/ahmed-new"
-}
-
-
-**Response (200 OK):**
-
-{
-  "success": true,
-  "message": "Student updated successfully",
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "fName": "Ahmed",
-    "lName": "Hassan",
-    "email": "newemail@example.com",
-    "trackName": "Full Stack Development"
-  },
-  "errors": null,
-  "errorCode": 0
-}
-
-
----
-
-### 6. Update Student Status
-**PATCH** `/api/students/{id}/status`
-
-Updates only the student's active/inactive status.
-
-**Path Parameter:**
-- `id` (required): Student GUID
-
-**Request Body:**
-
-{
-  "isActive": false
-}
-
-
-**Response (200 OK):**
-
-{
-  "success": true,
-  "message": "Student status updated successfully",
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "isActive": false
-  },
-  "errors": null,
-  "errorCode": 0
-}
-
-
----
-
-### 7. Delete Student
-**DELETE** `/api/students/{id}/delete`
-
-Deletes a student record permanently.
-
-**Path Parameter:**
-- `id` (required): Student GUID
-
-**Example Request:**
-
-/api/students/550e8400-e29b-41d4-a716-446655440000/delete
-
-
-**Response (200 OK):**
-
-{
-  "success": true,
-  "message": "Student deleted successfully",
-  "data": null,
-  "errors": null,
-  "errorCode": 0
-}
-
-
----
-
-## 🧪 Testing Guide
-
-### Option 1: Using Swagger UI (Recommended)
-1. Start the application
-2. Navigate to `https://localhost:5001/swagger`
-3. Expand any endpoint
-4. Click "Try it out"
-5. Fill in the required parameters
-6. Click "Execute"
-
-### Option 2: Using Postman
-1. Import the API routes listed above
-2. Set the base URL to `https://localhost:5001`
-3. For each endpoint, set the method (GET, POST, PUT, PATCH, DELETE)
-4. Add request bodies where applicable
-5. Send requests and verify responses
-
-### Option 3: Using cURL
-
-# Create a student
-curl -X POST https://localhost:5001/api/students/create \
-  -H "Content-Type: application/json" \
-  -d '{
-    "fName": "Ahmed",
-    "lName": "Hassan",
-    "email": "ahmed@example.com",
-    "phoneNumber": "01012345678",
-    "trackName": "Backend Development"
-  }'
-
-# Get all students
-curl -X GET https://localhost:5001/api/students/all
-
-# Get student by ID
-curl -X GET https://localhost:5001/api/students/{id}
-
-# Update student
-curl -X PUT https://localhost:5001/api/students/{id} \
-  -H "Content-Type: application/json" \
-  -d '{"fName":"Updated","lName":"Name"}'
-
-# Delete student
-curl -X DELETE https://localhost:5001/api/students/{id}/delete
-
-
----
-
-## 📸 Swagger Screenshots & Evidence
-
-All Swagger/API testing screenshots and evidence have been documented and stored in Google Drive:
-
-**📁 Google Drive Folder:** [Student Management API - Swagger Evidence](https://drive.google.com/drive/folders/YOUR_FOLDER_ID_HERE)
-
-### Screenshots Included:
-- ✅ Swagger UI Dashboard
-- ✅ Create Student Endpoint Test
-- ✅ Get All Students Endpoint Test
-- ✅ Get Student by ID Test
-- ✅ Update Student Test
-- ✅ Update Student Status Test
-- ✅ Delete Student Test
-- ✅ Get Statistics Test
-- ✅ Pagination Testing
-- ✅ Validation Error Examples
-
-*Note: Replace `YOUR_FOLDER_ID_HERE` with the actual Google Drive folder link containing the screenshots.*
-
----
-
-## ⚙️ Configuration
-
-### appsettings.json
-The application uses the default ASP.NET Core configuration. Modify as needed for your environment.
-
-### Swagger Configuration
-Swagger is enabled in Development environment. Access it at `/swagger` endpoint.
-
----
-
-## 📝 Error Responses
-
-The API returns standardized error responses:
-
-**400 Bad Request:**
-
+**Failure**
+```json
 {
   "success": false,
   "message": "Validation errors.",
   "errors": [
-    "First name is required.",
-    "Invalid email address."
+    "Price must be greater than 0.",
+    "Stock quantity must be not negative."
   ],
+  "data": null,
   "errorCode": 400
 }
-
-
-**404 Not Found:**
-
-{
-  "success": false,
-  "message": "Student not found.",
-  "errors": [],
-  "errorCode": 404
-}
-
-
-**409 Conflict:**
-
-{
-  "success": false,
-  "message": "Cannot perform this operation.",
-  "errors": ["Student status conflict"],
-  "errorCode": 409
-}
-
-
-**500 Internal Server Error:**
-
-{
-  "success": false,
-  "message": "An error occurred while processing your request.",
-  "errors": ["Server error details"],
-  "errorCode": 500
-}
-
+```
 
 ---
 
-## 🏗️ Project Structure
+## 🌱 Data Seeding
 
+On application startup, each service seeds its own in-memory store:
 
-Task_02___Student_Management_API/
-├── Controllers/
-│   └── StudentsController.cs
-├── Services/
-│   └── StudentService.cs
-├── DTOs/
-│   ├── CreateStudentRequest.cs
-│   ├── UpdateStudentRequest.cs
-│   ├── UpdateStudentStatusRequest.cs
-│   └── StudentResponse.cs
-├── Entities/
-│   └── Student.cs
-├── Utilities/
-│   ├── Result.cs
-│   └── Filter.cs
-├── Program.cs
-└── README.md
+- **Categories:** Electronics, Furniture, Stationery, Accessories
+- **Products:** 15 products distributed across the seeded categories (e.g. Laptop, Mouse, Keyboard, Office Chair, Desk, Notebook, Backpack), including some already out of stock to exercise availability filtering and reporting.
 
+> ⚠️ Since data is stored in-memory (static lists), all data resets whenever the application restarts.
 
 ---
 
-## 🔧 Technology Stack
+## 🖼 Screenshots
 
-- **Framework**: ASP.NET Core 9
-- **Language**: C# 13.0
-- **Architecture**: RESTful API
-- **Documentation**: Swagger/OpenAPI
-- **Dependency Injection**: Built-in .NET Core DI
+Below are screenshots demonstrating the API in action (Swagger UI / Postman testing).
 
----
+> 📌 **[View Screenshots on Google Drive](https://drive.google.com/drive/folders/1Mh4G248sAifrEsD5hCX5BSPWQaiFRiyR?usp=drive_link)**
 
-## 📌 Important Notes
-
-1. **Data Persistence**: The current implementation uses in-memory storage. Data will be lost when the application restarts.
-2. **Phone Validation**: Accepts Egyptian phone numbers in format `01X + 8 digits` (e.g., `01012345678`)
-3. **Email Validation**: Standard email format validation is applied
-4. **Singleton Service**: `StudentService` is registered as a singleton to maintain data during the session
+| Description                          | Preview |
+|----------------------------------------|---------|
+| Swagger UI — All Endpoints             | *(https://drive.google.com/file/d/1o1kHpeR8lzpxjrXZkExljK6v6bDOj5aj/view?usp=drive_link)* |
+| GET /api/categories — Response         | *(https://drive.google.com/file/d/1UqvKSUsKVZWXdJU_iQQ-5LPtRg2-rlFf/view?usp=drive_link)* |
+| POST /api/products — Validation Error  | *(https://drive.google.com/file/d/1flRYg7G6M2pOY-hgwlZMj5VXWyUlpWdS/view?usp=drive_link)* |
+| GET /api/products/reports/stock        | *(https://drive.google.com/drive/folders/1F25uNzx-kLHuWoAHnEQ_FkQ2aut9kHtm?usp=drive_link)* |
 
 ---
 
-## ✨ Author
+## 📝 Notes
 
-Created as Task 02 for TechMaster Backend Training Program
+- This project uses **in-memory storage** (static `List<T>` collections) rather than a database, so it's intended for learning/demo purposes.
+- `CatalogService` sits above `CategoryService` and `ProductService` to compose categories together with their associated products without coupling the two lower-level services to each other.
+- Business validation (e.g., duplicate category names, valid category references, non-negative stock, positive price) is enforced in the service layer before any data mutation.
+- Error responses carry an `ErrorCode` (e.g. `400`, `404`, `409`) that controllers use to select the appropriate HTTP status code (`BadRequest`, `NotFound`, `Conflict`).
 
-**Repository**: [techmaster-aspnet-backend-training](https://github.com/Abd-ErrahmanAbuAl-Hassan/techmaster-aspnet-backend-training)
+---
 
+### 👤 Author
 
-This revised README maintains the original structure while enhancing clarity and coherence, ensuring that all necessary information is presented in a logical flow.
+Project developed as part of a mini-project task focused on building a layered, RESTful Web API with ASP.NET Core.
