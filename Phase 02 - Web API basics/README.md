@@ -1,124 +1,134 @@
-# Phase 02 - ASP.NET Core Web API Basics
+# ASP.NET Core Web API — Mini Project Series
 
-Phase 02 is the transition from console-based applications to real HTTP
-APIs. It focuses on building clear, testable and review-ready ASP.NET Core
-Web APIs before introducing databases and Entity Framework Core in Phase 03.
+A series of four progressively more advanced **ASP.NET Core Web API** mini-projects, built to practice REST API fundamentals, layered architecture, validation, filtering/pagination, and clean, consistent API response design.
 
-## Student
+Each project is self-contained, uses **in-memory storage** (no database required), and follows a **Controller → Service → Utilities** layered structure with a shared-style `Result<T>` response wrapper.
 
-- **Name:** Abdulrahman Mohamed
-- **Track:** ASP.NET Backend Career Training
-- **Academy:** TechMaster Academy
+---
 
-## Phase Summary
+## 📖 Table of Contents
 
-This phase contains practical exercises and small API projects covering:
+- [Projects Overview](#-projects-overview)
+- [Tech Stack](#-tech-stack)
+- [Common Architecture](#-common-architecture)
+- [Getting Started](#-getting-started)
+- [Repository Structure](#-repository-structure)
+- [Notes](#-notes)
 
-- **API fundamentals:** HTTP requests and responses, controllers, routing,
-  query strings, route parameters, request bodies and status codes.
-- **REST and routing drills:** 15 focused exercises for health checks,
-  calculations, conversions, notes, search, pagination, headers and standard
-  error responses.
-- **Student Management API:** An in-memory CRUD API with DTOs, services,
-  validation, search, filtering, pagination and statistics.
-- **Products & Categories API:** Related resources with category validation,
-  product filtering, inventory visibility and stock reports.
-- **Book Store API:** A larger in-memory project combining books, authors,
-  categories, relationships, validation, pagination and summary reports.
-- **API delivery standards:** Swagger/OpenAPI documentation, Postman testing,
-  evidence collection and refactoring poorly structured API code.
-- **Interview preparation:** Short explanations of REST, controllers, DTOs,
-  services, dependency injection, validation, status codes and API debugging.
+---
 
-## Phase Deliverables
+## 📦 Projects Overview
 
-By the end of the phase, the repository should contain:
+### 1️⃣ Task 01 — REST Routing Drill Pack
+A collection of small, focused endpoints for practicing core REST concepts: routing, route/query parameters, request bodies, HTTP status codes, and headers.
 
-1. A working API setup project.
-2. 15 REST and routing drills.
-3. Student Management, Products & Categories, and Book Store APIs.
-4. Swagger documentation and a Postman collection with success and failure
-	cases.
-5. README documentation, screenshots and interview answers.
-6. A refactored API example demonstrating clean controller, DTO and service
-	separation.
+- Health check, echo, calculator, and unit-converter drills
+- Grade calculator
+- Full Notes CRUD with search and pagination
+- Custom header reading (`X-Student-Name`)
+- Dedicated endpoints demonstrating `200`, `201`, `204`, `400`, and `404` responses
 
-## Repository Structure
+### 2️⃣ Task 02 — Student Management API
+Manages students enrolled in different tracks, with validation and statistics.
 
-```text
-Phase 02 - Web API basics/
-├── README.md
-├── Task 00 - API Workspace Setup/
-├── Task 01 - REST & Routing Drills/
-├── Task 02 - Student Management API/
-├── Task 03 - Products & Categories API/
-├── Task 04 - Book Store API/
-├── Task 05 - Swagger & Postman Evidence/
-├── Task 06 - API Standards & Refactor Pack/
-└── Task 07 - Interview Answers/
+- Full Student CRUD, plus a dedicated status-update endpoint (`PATCH`)
+- Search by name/email, filter by track and active status, with pagination
+- Statistics endpoint (totals, active/inactive counts, breakdown by track)
+- Egypt-specific email and phone number validation
+
+### 3️⃣ Task 03 — Products & Categories API
+Manages a product catalog organized into categories, with a composition layer joining the two.
+
+- Full CRUD for Products and Categories
+- `CatalogService` enriches categories with their related products
+- Search/filter/pagination on both resources (price range, availability, low-stock threshold, etc.)
+- Stock report endpoint (total value, per-category breakdown, low-stock/out-of-stock lists)
+
+### 4️⃣ Task 04 — Book Store API
+Manages a bookstore's books, authors, and categories.
+
+- Full CRUD for Books, Authors, and Categories
+- Search on title/ISBN, filter by category/author/availability, with pagination
+- Business rules: unique ISBN, valid author/category references, inactive-category protection
+- Inventory summary report (totals, value, breakdown by category and author)
+- Automatic data seeding on startup
+
+---
+
+## 🛠 Tech Stack
+
+- **.NET / ASP.NET Core Web API**
+- **C#**
+- In-memory data stores (static collections — no database required)
+- Swagger / OpenAPI for interactive API testing
+
+---
+
+## 🏗 Common Architecture
+
+All four projects share the same general design philosophy:
+
+- **Controllers** — handle HTTP concerns only (routing, status code selection); no business logic
+- **Services** — contain business logic, validation, and data operations
+- **Utilities** — shared helpers such as the `Result<T>` response wrapper, filter objects, and validation helpers
+- **Consistent responses** — every endpoint returns a predictable shape with a success flag, message, data payload, and error details, so consumers can handle success/failure uniformly across all four APIs
+
+**Typical response shape:**
+
+```json
+{
+  "success": true,
+  "message": "Operation completed successfully",
+  "data": { },
+  "errors": []
+}
 ```
 
-## Current Setup Project
+---
 
-The initial project is located in `Task 00 - API Workspace Setup` and targets
-.NET 9. It includes:
+## 🚀 Getting Started
 
-- Controller-based API configuration.
-- Swagger/OpenAPI documentation.
-- HTTPS redirection.
-- A starter `WeatherForecast` endpoint for verifying the workspace.
+Each project can be run independently.
 
-## Prerequisites
+### Prerequisites
 
-- .NET 9 SDK or a compatible newer SDK.
-- Visual Studio or Visual Studio Code.
-- Git and GitHub.
-- Postman for request testing.
+- [.NET SDK](https://dotnet.microsoft.com/download) (7.0 or later recommended)
+- An IDE such as Visual Studio, Visual Studio Code, or JetBrains Rider
 
-## How To Run
+### Running a project
 
-From the phase directory, run:
-
-```powershell
-dotnet run --project ".\Task 00 - API Workspace Setup\Task 00 - API Workspace Setup.csproj"
+```bash
+git clone https://github.com/<your-username>/<repo-name>.git
+cd <repo-name>/<project-folder>
+dotnet restore
+dotnet run
 ```
 
-When the application starts, open Swagger:
+Then open the Swagger UI to explore and test the endpoints:
 
-- `https://localhost:7241/swagger`
-- `http://localhost:5036/swagger`
+```
+https://localhost:<port>/swagger
+```
 
-The HTTPS development certificate may prompt a browser warning on a local
-machine. This is expected for local development.
+---
 
-## API Standards
+## 🗂 Repository Structure
 
-Each endpoint should have a clear route, request shape, response shape,
-validation rule and status code. Controllers should coordinate HTTP concerns,
-DTOs should define public request and response contracts, and services should
-own business logic and in-memory data operations.
+```
+.
+├── README.md                              # This file
+├── task-01-rest-routing-drill-pack/
+├── task-02-student-management-api/
+├── task-03-products-categories-api/
+└── task-04-book-store-api/
+```
 
-Expected status codes include:
+Each subfolder contains its own `README.md` with project-specific details: full endpoint list, request/response examples, and setup instructions.
 
-- `200 OK` for successful reads and updates.
-- `201 Created` when a resource is created.
-- `204 No Content` for a successful delete without a response body.
-- `400 Bad Request` for invalid input.
-- `404 Not Found` when the requested resource does not exist.
+---
 
-## Evidence Checklist
+## 📝 Notes
 
-- Swagger opens and lists the implemented endpoints.
-- Postman requests cover successful and invalid scenarios.
-- At least three error responses are documented.
-- README files explain how each task runs and is tested.
-- Screenshots and exported Postman collections are stored in the relevant
-  task folder.
-
-## Learning Outcome
-
-This phase builds the foundation for database-backed APIs. The projects use
-in-memory collections intentionally, allowing the focus to remain on HTTP,
-API design, validation and code organization. In Phase 03, the service and
-model structure can be adapted to persistent storage with Entity Framework
-Core.
+- These projects are **learning-focused** mini-projects, so they intentionally use in-memory storage rather than a database — all data resets on application restart.
+- Each project increases in scope and complexity, moving from isolated routing drills (Task 01) to single-resource CRUD with validation (Task 02), to multi-resource composition (Task 03), to a more complete domain with cross-entity business rules and reporting (Task 04).
+- See each project's individual README for detailed endpoint documentation and sample requests.
