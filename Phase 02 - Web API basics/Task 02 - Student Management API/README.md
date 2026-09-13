@@ -79,7 +79,7 @@ task-02-student-management-api/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/<your-username>/task-02-student-management-api.git
+   git clone https://github.com/Abd-ErrahmanAbuAl-Hassan/task-02-student-management-api.git
    cd "task-02-student-management-api/Task_02___Student_Management_API"
    ```
 
