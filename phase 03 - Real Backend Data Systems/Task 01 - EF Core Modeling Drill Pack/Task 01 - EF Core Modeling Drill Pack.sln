@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.37012.4 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Task 01 - EF Core Modeling Drill Pack", "Task 01 - EF Core Modeling Drill Pack.csproj", "{750D9FAF-1186-4AF9-80EF-11D7BB8C3E08}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{750D9FAF-1186-4AF9-80EF-11D7BB8C3E08}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{750D9FAF-1186-4AF9-80EF-11D7BB8C3E08}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{750D9FAF-1186-4AF9-80EF-11D7BB8C3E08}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{750D9FAF-1186-4AF9-80EF-11D7BB8C3E08}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D484EEFA-4372-4263-97E4-A8BC32CE9164}
+	EndGlobalSection
+EndGlobal
