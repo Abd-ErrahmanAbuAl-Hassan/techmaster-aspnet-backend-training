@@ -119,8 +119,8 @@ task-01-ef-core-modeling-drill-pack/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/<your-username>/task-01-ef-core-modeling-drill-pack.git
-   cd "task-01-ef-core-modeling-drill-pack/Task_01___EF_Core_Modeling_Drill_Pack"
+   git clone https://github.com/Abd-ErrahmanAbuAl-Hassan/techmaster-aspnet-backend-training.git
+   cd "phase 03 - Real Backend Data Systems/Task 01 - EF Core Modeling Drill Pack"
    ```
 
 2. **Restore dependencies**
@@ -144,7 +144,7 @@ task-01-ef-core-modeling-drill-pack/
 
 6. **Open the API documentation (Swagger UI)**
    ```
-   https://localhost:<port>/swagger
+   https://localhost:7027/swagger/index.html
    ```
 
 > On startup, `SeedData.SeedAsync` populates instructors, training tracks, students, and enrollments — but only if the `Students` table is currently empty.
@@ -271,6 +271,6 @@ On startup, `SeedData.SeedAsync` seeds the database (only if it's empty) with:
 
 Below are screenshots demonstrating the API in action (Swagger UI / Postman testing).
 
-> 📌 **[View Screenshots on Google Drive](https://drive.google.com/your-screenshot-link-here)**
+> 📌 **[View Screenshots on Google Drive](https://drive.google.com/drive/folders/1wGYd3fzJef-AGyS9imZ0jFJq8tqIRMFk?usp=drive_link)**
 
 ---
