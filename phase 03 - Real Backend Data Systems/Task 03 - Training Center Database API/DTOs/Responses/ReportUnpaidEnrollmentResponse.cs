@@ -1,0 +1,13 @@
+namespace Task_03___Training_Center_Database_API.DTOs.Responses
+{
+    public class ReportUnpaidEnrollmentResponse
+    {
+        public int EnrollmentId { get; set; }
+        public string StudentName { get; set; } = string.Empty;
+        public string TrackName { get; set; } = string.Empty;
+        public decimal TrackPrice { get; set; }
+        public decimal TotalPaid { get; set; }
+        public decimal Remaining => TrackPrice - TotalPaid;
+        public DateTime EnrollmentDate { get; set; }
+    }
+}

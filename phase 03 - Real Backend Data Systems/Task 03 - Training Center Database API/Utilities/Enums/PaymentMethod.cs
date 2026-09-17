@@ -6,6 +6,8 @@
         Instapay,
         Fawry,
         ApplePay,
-        Visa
+        CreditCard,
+        Cash,
+        BankTransfer
     }
 }

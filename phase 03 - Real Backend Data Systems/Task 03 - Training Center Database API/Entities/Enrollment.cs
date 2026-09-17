@@ -9,7 +9,7 @@ namespace Task_03___Training_Center_Database_API.Entities
         public EnrollmentStatus Status { get; set; }
         public DateTime EnrollmentDate { get; set; }
         public decimal ProgressPercentage { get; set; }
-        public decimal? FinalResult { get; set; }
+        public double? FinalResult { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 

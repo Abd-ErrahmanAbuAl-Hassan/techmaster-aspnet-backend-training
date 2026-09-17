@@ -116,19 +116,6 @@ namespace Task_03___Training_Center_Database_API.Data
                         break;
                 }
             }
-
-            now = DateTime.UtcNow;
-
-            foreach (var entry in ChangeTracker.Entries<ISoftDelete>())
-            {
-                switch (entry.State)
-                {
-                    case EntityState.Modified:
-                        entry.Entity.DeletedAt = now;
-                        break;
-                   
-                }
-            }
         }
     }
 }

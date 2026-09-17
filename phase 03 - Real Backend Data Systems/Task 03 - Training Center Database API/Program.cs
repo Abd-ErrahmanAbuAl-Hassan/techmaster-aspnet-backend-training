@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 using Task_03___Training_Center_Database_API.Data;
 using Task_03___Training_Center_Database_API.Services;
 using Task_03___Training_Center_Database_API.Services.Interfaces;
@@ -7,7 +8,7 @@ namespace Task_03___Training_Center_Database_API
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
             builder.Services.AddDbContext<ApplicationDbContext>(op =>
@@ -18,9 +19,16 @@ namespace Task_03___Training_Center_Database_API
             builder.Services.AddScoped<IInstructorService, InstructorService>();
             builder.Services.AddScoped<ITrainingTrackService, TrainingTrackService>();
             builder.Services.AddScoped<IPaymentService, PaymentService>();
+            builder.Services.AddScoped<IReportService, ReportService>();
 
-            builder.Services.AddControllers();
 
+            builder.Services.AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+                    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+                    options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+                });
             builder.Services.AddSwaggerGen();
             var app = builder.Build();
 
@@ -29,7 +37,7 @@ namespace Task_03___Training_Center_Database_API
             {
                 using var scope = app.Services.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                //await SeedData.SeedAsync(db);
+                await SeedData.SeedAsync(db);
 
                 app.UseSwagger();
                 app.UseSwaggerUI();
