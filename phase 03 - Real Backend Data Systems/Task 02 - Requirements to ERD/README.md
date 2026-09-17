@@ -5,8 +5,8 @@
 This document translates the TechMaster Academy business requirements into a relational database design. It covers the five core entities (Student, Instructor, TrainingTrack, Enrollment, Payment) plus the bonus entities (Sessions, Assignments, Attendance, Submission), their fields, keys, relationships, business rules, and how the design answers the required business questions.
 
 
-![ERD Diagram](https://drive.google.com/file/d/1fWkza9Ro6iMcTkdgmEPnh0f6ObpQreY0/view?usp=drive_link)
-![Mapping](https://drive.google.com/file/d/1wEzs4QAiSXXttDQn4D98K8k8P83oCehK/view?usp=drive_link)
+**[ERD Diagram](https://drive.google.com/file/d/1fWkza9Ro6iMcTkdgmEPnh0f6ObpQreY0/view?usp=drive_link)
+**[Mapping](https://drive.google.com/file/d/1wEzs4QAiSXXttDQn4D98K8k8P83oCehK/view?usp=drive_link)
 
 ---
 
@@ -161,19 +161,75 @@ This document translates the TechMaster Academy business requirements into a rel
 
 ## 5. Business Questions the Database Must Answer
 
-| # | Question | How the schema answers it | Query |
-|---|---|---|
-| 1 | Which students are enrolled in a specific track? | `Enrollment` filtered by `TrainingTrackId`, joined to `Student`. | SELECT
+The database schema is designed to support the following real-world business questions and reporting requirements.
+
+### Business Questions Overview
+
+| # | Business Question | Primary Tables / Logic |
+|---:|---|---|
+| **1** | Which students are enrolled in a specific track? | `Enrollment` → `Student`, filtered by `TrainingTrackId` |
+| **2** | Which tracks have available seats? | `TrainingTrack.Capacity` − active enrollment count |
+| **3** | Which enrollments are unpaid? | `Enrollment` → `Payment`, checking for completed payments |
+| **4** | How much revenue did each track generate? | `Payment.Amount` aggregated by `TrainingTrack` |
+| **5** | Which instructor has the highest workload? | Active enrollments grouped by `InstructorId` |
+| **6** | Which students have active enrollments? | `Enrollment.Status = 'Active'` |
+| **7** | Which tracks start this month? | `TrainingTrack.StartDate` filtered by the current month |
+| **8** | What is the payment history for an enrollment? | `Payment` filtered by `EnrollmentId` |
+| **9** | Which tracks are full? | Active enrollment count ≥ `TrainingTrack.Capacity` |
+| **10** | How many enrollments exist by status? | `COUNT(Enrollment)` grouped by `Status` |
+
+---
+
+### 1. Students Enrolled in a Specific Track
+
+**Business Requirement:**  
+Retrieve all students enrolled in a specific training track.
+
+**Schema Logic:**
+
+`Enrollment` → `Student`
+
+The query filters enrollments by `TrainingTrackId` and returns the associated student information.
+
+<details>
+<summary><strong>SQL Query</strong></summary>
+
+```sql
+SELECT
     s.StudentId,
     s.FullName,
     s.Email,
     e.EnrollmentDate,
     e.Status AS EnrollmentStatus
 FROM Enrollment e
-JOIN Student s ON s.StudentId = e.StudentId
+JOIN Student s
+    ON s.StudentId = e.StudentId
 WHERE e.TrainingTrackId = @TrainingTrackId
-ORDER BY s.FullName;|
-| 2 | Which tracks have available seats? | `TrainingTrack.Capacity` minus `COUNT(Enrollment)` grouped by `TrainingTrackId`. | SELECT
+ORDER BY s.FullName;
+```
+
+</details>
+
+---
+
+### 2. Tracks with Available Seats
+
+**Business Requirement:**  
+Determine which training tracks still have available seats.
+
+**Schema Logic:**
+
+```text
+Available Seats = Capacity - Active Enrollments
+```
+
+Cancelled enrollments are excluded from the capacity calculation.
+
+<details>
+<summary><strong>SQL Query</strong></summary>
+
+```sql
+SELECT
     t.TrainingTrackId,
     t.Title,
     t.Capacity,
@@ -182,52 +238,161 @@ ORDER BY s.FullName;|
 FROM TrainingTrack t
 LEFT JOIN Enrollment e
     ON e.TrainingTrackId = t.TrainingTrackId
-    AND e.Status <> 'Cancelled'          -- don't count cancelled enrollments against capacity
+    AND e.Status <> 'Cancelled'
 WHERE t.IsDeleted = 0
-GROUP BY t.TrainingTrackId, t.Title, t.Capacity
+GROUP BY
+    t.TrainingTrackId,
+    t.Title,
+    t.Capacity
 HAVING t.Capacity - COUNT(e.EnrollmentId) > 0
-ORDER BY AvailableSeats DESC; |
-| 3 | Which enrollments are unpaid? | `Enrollment` left-joined to `Payment`; enrollments with no completed payment covering the required amount, or `Payment.PaymentStatus` ≠ Completed. | SELECT
+ORDER BY AvailableSeats DESC;
+```
+
+</details>
+
+---
+
+### 3. Unpaid Enrollments
+
+**Business Requirement:**  
+Identify enrollments that do not have a completed payment.
+
+**Schema Logic:**
+
+`Enrollment` → `Payment`
+
+An enrollment is considered unpaid when there is no associated payment with `PaymentStatus = 'Completed'`.
+
+<details>
+<summary><strong>SQL Query</strong></summary>
+
+```sql
+SELECT
     e.EnrollmentId,
     s.FullName AS StudentName,
     t.Title AS TrackTitle
 FROM Enrollment e
-JOIN Student s ON s.StudentId = e.StudentId
-JOIN TrainingTrack t ON t.TrainingTrackId = e.TrainingTrackId
-WHERE NOT EXISTS (
-    SELECT 1 FROM Payment p
+JOIN Student s
+    ON s.StudentId = e.StudentId
+JOIN TrainingTrack t
+    ON t.TrainingTrackId = e.TrainingTrackId
+WHERE NOT EXISTS
+(
+    SELECT 1
+    FROM Payment p
     WHERE p.EnrollmentId = e.EnrollmentId
       AND p.PaymentStatus = 'Completed'
-); |
-| 4 | How much revenue did each track generate? | `SUM(Payment.Amount)` joined through `Enrollment.TrainingTrackId`, grouped by track. | SELECT
+);
+```
+
+</details>
+
+---
+
+### 4. Revenue Generated by Each Track
+
+**Business Requirement:**  
+Calculate the total completed-payment revenue generated by each training track.
+
+**Schema Logic:**
+
+`TrainingTrack` → `Enrollment` → `Payment`
+
+Only completed payments are included in the revenue calculation.
+
+<details>
+<summary><strong>SQL Query</strong></summary>
+
+```sql
+SELECT
     t.TrainingTrackId,
     t.Title,
     COALESCE(SUM(p.Amount), 0) AS TotalRevenue
 FROM TrainingTrack t
-LEFT JOIN Enrollment e ON e.TrainingTrackId = t.TrainingTrackId
+LEFT JOIN Enrollment e
+    ON e.TrainingTrackId = t.TrainingTrackId
 LEFT JOIN Payment p
     ON p.EnrollmentId = e.EnrollmentId
     AND p.PaymentStatus = 'Completed'
-GROUP BY t.TrainingTrackId, t.Title
-ORDER BY TotalRevenue DESC; |
-| 5 | Which instructor has the highest workload? | `COUNT(TrainingTrack)` (or count of active enrollments across their tracks) grouped by `InstructorId`. | SELECT TOP 1
+GROUP BY
+    t.TrainingTrackId,
+    t.Title
+ORDER BY TotalRevenue DESC;
+```
+
+</details>
+
+---
+
+### 5. Instructor with the Highest Workload
+
+**Business Requirement:**  
+Identify the instructor responsible for the highest number of active students.
+
+**Schema Logic:**
+
+`Instructor` → `TrainingTrack` → `Enrollment`
+
+The workload is measured by the number of active students enrolled in an instructor's tracks.
+
+<details>
+<summary><strong>SQL Query</strong></summary>
+
+```sql
+SELECT TOP 1
     i.InstructorId,
     i.FullName,
     COUNT(e.EnrollmentId) AS ActiveStudentCount
 FROM Instructor i
-JOIN TrainingTrack t ON t.InstructorId = i.InstructorId
-JOIN Enrollment e ON e.TrainingTrackId = t.TrainingTrackId AND e.Status = 'Active'
-GROUP BY i.InstructorId, i.FullName
-ORDER BY ActiveStudentCount DESC; |
-| 6 | Which students have active enrollments? | `Enrollment` filtered by `Status = 'Active'`, joined to `Student`. | SELECT DISTINCT
+JOIN TrainingTrack t
+    ON t.InstructorId = i.InstructorId
+JOIN Enrollment e
+    ON e.TrainingTrackId = t.TrainingTrackId
+    AND e.Status = 'Active'
+GROUP BY
+    i.InstructorId,
+    i.FullName
+ORDER BY ActiveStudentCount DESC;
+```
+
+</details>
+
+---
+
+### 6. Students with Active Enrollments
+
+**Business Requirement:**  
+Retrieve all students who currently have at least one active enrollment.
+
+<details>
+<summary><strong>SQL Query</strong></summary>
+
+```sql
+SELECT DISTINCT
     s.StudentId,
     s.FullName,
     s.Email
 FROM Student s
-JOIN Enrollment e ON e.StudentId = s.StudentId
+JOIN Enrollment e
+    ON e.StudentId = s.StudentId
 WHERE e.Status = 'Active'
-ORDER BY s.FullName; |
-| 7 | Which tracks start this month? | `TrainingTrack` filtered by `StartDate` within the current month. | SELECT
+ORDER BY s.FullName;
+```
+
+</details>
+
+---
+
+### 7. Tracks Starting This Month
+
+**Business Requirement:**  
+Retrieve all training tracks scheduled to start during the current month.
+
+<details>
+<summary><strong>SQL Query</strong></summary>
+
+```sql
+SELECT
     t.TrainingTrackId,
     t.Title,
     t.StartDate,
@@ -236,8 +401,23 @@ FROM TrainingTrack t
 WHERE YEAR(t.StartDate) = YEAR(GETUTCDATE())
   AND MONTH(t.StartDate) = MONTH(GETUTCDATE())
   AND t.IsDeleted = 0
-ORDER BY t.StartDate; |
-| 8 | What is the payment history for an enrollment? | `Payment` filtered by `EnrollmentId`, ordered by `PaymentDate`. | SELECT
+ORDER BY t.StartDate;
+```
+
+</details>
+
+---
+
+### 8. Payment History for an Enrollment
+
+**Business Requirement:**  
+Retrieve the complete payment history associated with a specific enrollment.
+
+<details>
+<summary><strong>SQL Query</strong></summary>
+
+```sql
+SELECT
     p.PaymentId,
     p.Amount,
     p.PaymentMethod,
@@ -246,8 +426,31 @@ ORDER BY t.StartDate; |
     p.ReferenceNumber
 FROM Payment p
 WHERE p.EnrollmentId = @EnrollmentId
-ORDER BY p.PaymentDate; |
-| 9 | Which tracks are full? | `TrainingTrack` where `COUNT(Enrollment)` = `Capacity`. | SELECT
+ORDER BY p.PaymentDate;
+```
+
+</details>
+
+---
+
+### 9. Full Training Tracks
+
+**Business Requirement:**  
+Identify training tracks that have reached or exceeded their capacity.
+
+**Schema Logic:**
+
+```text
+Enrolled Students >= Track Capacity
+```
+
+Cancelled enrollments are excluded from the count.
+
+<details>
+<summary><strong>SQL Query</strong></summary>
+
+```sql
+SELECT
     t.TrainingTrackId,
     t.Title,
     t.Capacity,
@@ -257,15 +460,36 @@ JOIN Enrollment e
     ON e.TrainingTrackId = t.TrainingTrackId
     AND e.Status <> 'Cancelled'
 WHERE t.IsDeleted = 0
-GROUP BY t.TrainingTrackId, t.Title, t.Capacity
+GROUP BY
+    t.TrainingTrackId,
+    t.Title,
+    t.Capacity
 HAVING COUNT(e.EnrollmentId) >= t.Capacity
-ORDER BY t.Title; |
-| 10 | How many enrollments exist by status? | `COUNT(Enrollment)` grouped by `Status`. | SELECT
+ORDER BY t.Title;
+```
+
+</details>
+
+---
+
+### 10. Enrollment Count by Status
+
+**Business Requirement:**  
+Determine how many enrollments exist for each enrollment status.
+
+<details>
+<summary><strong>SQL Query</strong></summary>
+
+```sql
+SELECT
     e.Status,
     COUNT(*) AS EnrollmentCount
 FROM Enrollment e
 GROUP BY e.Status
-ORDER BY EnrollmentCount DESC; |
+ORDER BY EnrollmentCount DESC;
+```
+
+</details>
 
 ---
 
