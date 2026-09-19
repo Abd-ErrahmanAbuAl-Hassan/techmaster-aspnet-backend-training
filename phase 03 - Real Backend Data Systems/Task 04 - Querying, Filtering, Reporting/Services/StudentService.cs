@@ -1,15 +1,15 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Text.RegularExpressions;
-using Task_03___Training_Center_Database_API.Data;
-using Task_03___Training_Center_Database_API.DTOs.Requests;
-using Task_03___Training_Center_Database_API.DTOs.Responses;
-using Task_03___Training_Center_Database_API.Entities;
-using Task_03___Training_Center_Database_API.Services.Interfaces;
-using Task_03___Training_Center_Database_API.Utilities;
-using Task_03___Training_Center_Database_API.Utilities.Enums;
+using Task_04_Querying_Filtering_Reporting.Data;
+using Task_04_Querying_Filtering_Reporting.DTOs.Requests;
+using Task_04_Querying_Filtering_Reporting.DTOs.Responses;
+using Task_04_Querying_Filtering_Reporting.Entities;
+using Task_04_Querying_Filtering_Reporting.Services.Interfaces;
+using Task_04_Querying_Filtering_Reporting.Utilities;
+using Task_04_Querying_Filtering_Reporting.Utilities.Enums;
 
-namespace Task_03___Training_Center_Database_API.Services
+namespace Task_04_Querying_Filtering_Reporting.Services
 {
     public class StudentService : IStudentService
     {
@@ -20,7 +20,7 @@ namespace Task_03___Training_Center_Database_API.Services
             _context = context;
         }
 
-        public async Task<ApiResponse<PagedResult<StudentListItemResponse>>> GetStudentsAsync(int pageNumber = 1, int pageSize = 10, string? search = null, bool? isActive = null)
+        public async Task<ApiResponse<PagedResult<StudentListItemResponse>>> GetStudentsAsync(int pageNumber = 1, int pageSize = 10, string? search = null, bool? isActive = null, bool? isDeleted = null)
         {
             try
             {
@@ -29,8 +29,13 @@ namespace Task_03___Training_Center_Database_API.Services
                 if (isActive.HasValue)
                     query = query.Where(s => s.IsActive == isActive.Value);
 
+                if (isDeleted.HasValue)
+                    query = query.Where(s => s.IsDeleted != null && s.IsDeleted.Value == isDeleted.Value);
+
                 if (!string.IsNullOrWhiteSpace(search))
-                    query = query.Where(s => s.Email.Contains(search) || (s.FName+" "+s.LName).Contains(search));
+                    query = query.Where(s => s.Email.Contains(search.Trim())
+                                            || (s.FName+""+s.LName).Contains(search.Trim())
+                                            || s.PhoneNumber.Contains(search.Trim()));
 
                 var totalCount = await query.CountAsync();
                 var students = await query
@@ -48,12 +53,12 @@ namespace Task_03___Training_Center_Database_API.Services
                     })
                     .ToListAsync();
 
-                if(!students.Any())
+                if (!students.Any())
                     return new ApiResponse<PagedResult<StudentListItemResponse>>
                     {
                         Success = false,
                         Message = "No Students are found.",
-                        ErrorCode= 404,
+                        ErrorCode = 404,
                         Errors = new List<string>()
                     };
 
