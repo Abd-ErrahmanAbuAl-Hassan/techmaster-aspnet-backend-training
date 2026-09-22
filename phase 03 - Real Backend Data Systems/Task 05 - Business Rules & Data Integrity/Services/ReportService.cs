@@ -1,0 +1,471 @@
+using Microsoft.EntityFrameworkCore;
+using Task_05_Business_Rules_Data_Integrity.Data;
+using Task_05_Business_Rules_Data_Integrity.DTOs.Responses;
+using Task_05_Business_Rules_Data_Integrity.Entities;
+using Task_05_Business_Rules_Data_Integrity.Services.Interfaces;
+using Task_05_Business_Rules_Data_Integrity.Utilities;
+using Task_05_Business_Rules_Data_Integrity.Utilities.Enums;
+
+namespace Task_05_Business_Rules_Data_Integrity.Services
+{
+    public class ReportService : IReportService
+    {
+        private readonly ApplicationDbContext _context;
+
+        public ReportService(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        public async Task<ApiResponse<ReportDashboardResponse>> GetDashboardSummaryAsync()
+        {
+            try
+            {
+                var totalStudents = await _context.Students.CountAsync(s => s.IsActive);
+                var activeEnrollments = await _context.Enrollments.CountAsync(e => e.Status == EnrollmentStatus.Active);
+                var completedEnrollments = await _context.Enrollments.CountAsync(e => e.Status == EnrollmentStatus.Completed);
+                var totalTracks = await _context.TrainingTracks.CountAsync(t =>  !t.IsDeleted);
+
+                var totalRevenue = await _context.Payments
+                    .Where(p => p.PaymentStatus == PaymentStatus.Paid)
+                    .SumAsync(p => p.Amount);
+
+                var unpaidAmount = await _context.TrainingTracks
+                    .Include(t => t.Enrollments)
+                        .ThenInclude(e => e.Payments)
+                    .SumAsync(t => t.Price * t.Enrollments.Count(e => e.Status != EnrollmentStatus.Cancelled)
+                        - (t.Enrollments
+                            .Where(e => e.Status != EnrollmentStatus.Cancelled)
+                            .SelectMany(e => e.Payments)
+                            .Where(p => p.PaymentStatus == PaymentStatus.Paid)
+                            .Sum(p => p.Amount)));
+
+                var response = new ReportDashboardResponse
+                {
+                    TotalStudents = totalStudents,
+                    ActiveEnrollments = activeEnrollments,
+                    CompletedEnrollments = completedEnrollments,
+                    TotalTracks = totalTracks,
+                    TotalRevenue = totalRevenue,
+                    UnpaidAmount = unpaidAmount > 0 ? unpaidAmount : 0
+                };
+
+                return new ApiResponse<ReportDashboardResponse>
+                {
+                    Success = true,
+                    Message = "Dashboard summary retrieved successfully.",
+                    Data = response
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<ReportDashboardResponse>
+                {
+                    Success = false,
+                    Message = "Error retrieving dashboard summary.",
+                    ErrorCode = 500,
+                    Errors = new List<string> { ex.Message }
+                };
+            }
+        }
+
+        public async Task<ApiResponse<PagedResult<ReportUnpaidEnrollmentResponse>>> GetUnpaidEnrollmentsAsync(int pageNumber = 1, int pageSize = 10)
+        {
+            try
+            {
+                var enrollments = await _context.Enrollments
+                    .Include(e => e.Student)
+                    .Include(e => e.TrainingTrack)
+                    .Include(e => e.Payments)
+                    .Where(e => e.Status == EnrollmentStatus.Draft) 
+                    .ToListAsync();
+
+                var unpaidEnrollments = enrollments
+                    .Where(e =>
+                    {
+                        var trackPrice = e.TrainingTrack?.Price ?? 0;
+                        var totalPaid = e.Payments?
+                            .Where(p => p.PaymentStatus == PaymentStatus.Paid || p.PaymentStatus == PaymentStatus.PartiallyPaid)
+                            .Sum(p => p.Amount) ?? 0;
+                        return totalPaid < trackPrice;
+                    })
+                    .Select(e => new ReportUnpaidEnrollmentResponse
+                    {
+                        EnrollmentId = e.Id,
+                        StudentTitle = e.Student?.FullName ?? string.Empty,
+                        TrackTitle = e.TrainingTrack?.Title ?? string.Empty,
+                        TrackPrice = e.TrainingTrack?.Price ?? 0,
+                        TotalPaid = e.Payments?
+                            .Where(p => p.PaymentStatus == PaymentStatus.Paid || p.PaymentStatus == PaymentStatus.PartiallyPaid)
+                            .Sum(p => p.Amount) ?? 0,
+                        EnrollmentDate = e.EnrollmentDate
+                    });
+
+                var totalCount = unpaidEnrollments.Count();
+                var items = unpaidEnrollments
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+
+                return new ApiResponse<PagedResult<ReportUnpaidEnrollmentResponse>>
+                {
+                    Success = true,
+                    Message = "Unpaid enrollments retrieved successfully.",
+                    Data = new PagedResult<ReportUnpaidEnrollmentResponse>
+                    {
+                        Items = items,
+                        TotalCount = totalCount,
+                        PageNumber = pageNumber,
+                        PageSize = pageSize
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<PagedResult<ReportUnpaidEnrollmentResponse>>
+                {
+                    Success = false,
+                    Message = "Error retrieving unpaid enrollments.",
+                    ErrorCode = 500,
+                    Errors = new List<string> { ex.Message }
+                };
+            }
+        }
+
+        public async Task<ApiResponse<PagedResult<ReportTrackCapacityResponse>>> GetTrackCapacityAsync(int pageNumber = 1, int pageSize = 10)
+        {
+            try
+            {
+                var tracks = await _context.TrainingTracks
+                    .Include(t => t.Enrollments)
+                    .Where(t => !t.IsDeleted)
+                    .OrderByDescending(t => t.CreatedAt)
+                    .ToListAsync();
+
+                var capacityReports = tracks
+                    .Select(t => new ReportTrackCapacityResponse
+                    {
+                        TrackId = t.Id,
+                        TrackTitle = t.Title,
+                        Capacity = t.Capacity,
+                        Enrolled = t.Enrollments?.Count(e => e.Status == EnrollmentStatus.Active) ?? 0
+                    })
+                    .ToList();
+
+                var totalCount = capacityReports.Count;
+                var items = capacityReports
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+
+                return new ApiResponse<PagedResult<ReportTrackCapacityResponse>>
+                {
+                    Success = true,
+                    Message = "Track capacity report retrieved successfully.",
+                    Data = new PagedResult<ReportTrackCapacityResponse>
+                    {
+                        Items = items,
+                        TotalCount = totalCount,
+                        PageNumber = pageNumber,
+                        PageSize = pageSize
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<PagedResult<ReportTrackCapacityResponse>>
+                {
+                    Success = false,
+                    Message = "Error retrieving track capacity report.",
+                    ErrorCode = 500,
+                    Errors = new List<string> { ex.Message }
+                };
+            }
+        }
+
+        public async Task<ApiResponse<PagedResult<ReportTrackAvailableSeatsResponse>>> GetTracksWithAvailableSeatsAsync(int pageNumber = 1, int pageSize = 10)
+        {
+            try
+            {
+                var tracks = await _context.TrainingTracks
+                    .Include(t => t.Enrollments)
+                    .Where(t => !t.IsDeleted)
+                    .OrderByDescending(t => t.CreatedAt)
+                    .ToListAsync();
+
+                var availableSeats = tracks
+                    .Select(t =>
+                    {
+                        var active = t.Enrollments?.Count(e => e.Status == EnrollmentStatus.Active) ?? 0;
+                        var remaining = t.Capacity - active;
+                        return new ReportTrackAvailableSeatsResponse
+                        {
+                            TrackId = t.Id,
+                            TrackTitle = t.Title,
+                            Capacity = t.Capacity,
+                            ActiveEnrollments = active
+                        };
+                    })
+                    .Where(r => r.RemainingSeats > 0)
+                    .ToList();
+
+                var totalCount = availableSeats.Count;
+                var items = availableSeats
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+
+                return new ApiResponse<PagedResult<ReportTrackAvailableSeatsResponse>>
+                {
+                    Success = true,
+                    Message = "Tracks with available seats retrieved successfully.",
+                    Data = new PagedResult<ReportTrackAvailableSeatsResponse>
+                    {
+                        Items = items,
+                        TotalCount = totalCount,
+                        PageNumber = pageNumber,
+                        PageSize = pageSize
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<PagedResult<ReportTrackAvailableSeatsResponse>>
+                {
+                    Success = false,
+                    Message = "Error retrieving tracks with available seats.",
+                    ErrorCode = 500,
+                    Errors = new List<string> { ex.Message }
+                };
+            }
+        }
+
+        public async Task<ApiResponse<ReportRevenueSummaryResponse>> GetRevenueSummaryAsync()
+        {
+            try
+            {
+                var payments = await _context.Payments.ToListAsync();
+
+                var totalRevenue = payments.Sum(p => p.Amount);
+                var paidAmount = payments.Where(p => p.PaymentStatus == PaymentStatus.Paid).Sum(p => p.Amount);
+                var partiallyPaidAmount = payments.Where(p => p.PaymentStatus == PaymentStatus.PartiallyPaid).Sum(p => p.Amount);
+                var pendingAmount = payments.Where(p => p.PaymentStatus == PaymentStatus.Pending).Sum(p => p.Amount);
+
+                var response = new ReportRevenueSummaryResponse
+                {
+                    TotalRevenue = totalRevenue,
+                    PaidAmount = paidAmount,
+                    PartiallyPaidAmount = partiallyPaidAmount,
+                    PendingAmount = pendingAmount,
+                    TotalPayments = payments.Count,
+                    PaidCount = payments.Count(p => p.PaymentStatus == PaymentStatus.Paid)
+                };
+
+                return new ApiResponse<ReportRevenueSummaryResponse>
+                {
+                    Success = true,
+                    Message = "Revenue summary retrieved successfully.",
+                    Data = response
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<ReportRevenueSummaryResponse>
+                {
+                    Success = false,
+                    Message = "Error retrieving revenue summary.",
+                    ErrorCode = 500,
+                    Errors = new List<string> { ex.Message }
+                };
+            }
+        }
+
+        public async Task<ApiResponse<PagedResult<ReportRevenueByTrackResponse>>> GetRevenueByTrackAsync(int pageNumber = 1, int pageSize = 10)
+        {
+            try
+            {
+                var tracks = await _context.TrainingTracks
+                    .Include(t => t.Enrollments)
+                        .ThenInclude(e => e.Payments)
+                    .Where(t => !t.IsDeleted)
+                    .ToListAsync();
+
+                var revenueByTrack = tracks
+                    .Select(t =>
+                    {
+                        var enrollmentCount = t.Enrollments?.Count(e => e.Status != EnrollmentStatus.Cancelled) ?? 0;
+                        var totalPaid = t.Enrollments?
+                            .Where(e => e.Status != EnrollmentStatus.Cancelled)
+                            .SelectMany(e => e.Payments)
+                            .Where(p => p.PaymentStatus == PaymentStatus.Paid)
+                            .Sum(p => p.Amount) ?? 0;
+
+                        return new ReportRevenueByTrackResponse
+                        {
+                            TrackId = t.Id,
+                            TrackTitle = t.Title,
+                            TrackPrice = t.Price,
+                            EnrollmentCount = enrollmentCount,
+                            TotalRevenue = t.Price * enrollmentCount,
+                            TotalPaid = totalPaid,
+                            Outstanding = (t.Price * enrollmentCount) - totalPaid
+                        };
+                    })
+                    .OrderByDescending(r => r.TotalRevenue)
+                    .ToList();
+
+                var totalCount = revenueByTrack.Count;
+                var items = revenueByTrack
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+
+                return new ApiResponse<PagedResult<ReportRevenueByTrackResponse>>
+                {
+                    Success = true,
+                    Message = "Top tracks retrieved successfully.",
+                    Data = new PagedResult<ReportRevenueByTrackResponse>
+                    {
+                        Items = items,
+                        TotalCount = totalCount,
+                        PageNumber = pageNumber,
+                        PageSize = pageSize
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<PagedResult<ReportRevenueByTrackResponse>>
+                {
+                    Success = false,
+                    Message = "Error retrieving revenue by track.",
+                    ErrorCode = 500,
+                    Errors = new List<string> { ex.Message }
+                };
+            }
+        }
+
+        public async Task<ApiResponse<List<TrackMiniDetailsResponse>>> GetTopTrackAsync(int topCount = 5)
+        {
+            try
+            {
+                var tracks = await _context.TrainingTracks.Include(t => t.Enrollments)
+                    .Select(t => new TrackMiniDetailsResponse
+                    {
+                        Id = t.Id,
+                        Title = t.Title,
+                        Level = t.Level,
+                        Status = t.Status,
+                        EnrolledCount = t.Enrollments.Count()
+
+                    }).OrderByDescending(t => t.EnrolledCount).Take(topCount).ToListAsync();
+
+
+                // using Group by 
+                //var tracks =  await _context.Enrollments.Include(e => e.TrainingTrack).GroupBy(e => e.TrainingTrackId)
+                //    .Select(
+                //    t => new TrackMiniDetailsResponse
+                //    {
+                //        Id = t.Select(e => e.TrainingTrackId).First(),
+                //        Title = t.Select(e => e.TrainingTrack.Title).First(),
+                //        Level = t.Select(e => e.TrainingTrack.Level).First(),
+                //        Status = t.Select(e => e.TrainingTrack.Status).First(),
+                //        EnrolledCount = t.Count()
+
+                //    }).OrderByDescending(o=>o.EnrolledCount).Take(topCount).ToListAsync();
+
+                return new ApiResponse<List<TrackMiniDetailsResponse>>
+                {
+                    Success = true,
+                    Message = "Revenue by track retrieved successfully.",
+                    Data = tracks
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<List<TrackMiniDetailsResponse>>
+                {
+                    Success = false,
+                    Message = "Error retrieving revenue by track.",
+                    ErrorCode = 500,
+                    Errors = new List<string> { ex.Message }
+                };
+            }
+        }
+
+        public async Task<ApiResponse<List<InstructorWorkLoadResponse>>> GetInstructorWorkLoadAsync()
+        {
+            try
+            {
+                var instructors = await _context.Instructors
+                        .Select(i => new InstructorWorkLoadResponse
+                        {
+                            Id = i.Id,
+                            FullName = i.FullName,
+                            Email = i.Email,
+                            ActiveStudents = i.TrainingTracks.SelectMany(t => t.Enrollments).Count(e => e.Status == EnrollmentStatus.Active),
+                            TrackCount = i.TrainingTracks.Count()
+                        }).ToListAsync();
+
+                return new ApiResponse<List<InstructorWorkLoadResponse>>
+                {
+                    Success = true,
+                    Message = "Instructors workload retrieved successfully.",
+                    Data = instructors
+                };
+
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<List<InstructorWorkLoadResponse>>
+                {
+                    Success = false,
+                    Message = "Error retrieving revenue by track.",
+                    ErrorCode = 500,
+                    Errors = new List<string> { ex.Message }
+                };
+            }
+        }
+
+        public async Task<ApiResponse<List<StudentsWithoutPayment>>> GetStudentsWithoutPaymentsAsync()
+        {
+            try
+            {
+                var students = await _context.Students.Select(s => new StudentsWithoutPayment
+                {
+                    Id = s.Id,
+                    FullName = s.FullName,
+                    Email = s.Email,
+                    Payments = s.Enrollments.Where(e => e.Status == EnrollmentStatus.Draft).SelectMany(e => e.Payments)
+                        .Where(p => p.PaymentStatus != PaymentStatus.Paid)
+                        .Select(p => new PaymentResponse
+                        {
+                            Id = p.Id,
+                            Amount = p.Amount,
+                            PaymentDate = p.PaymentDate,
+                            ReferenceNumber = p.ReferenceNumber,
+                            PaymentStatus = p.PaymentStatus,
+                            PaymentMethod = p.PaymentMethod
+                        }).ToList()
+
+                }).ToListAsync();
+                return new ApiResponse<List<StudentsWithoutPayment>>
+                {
+                    Success = true,
+                    Message = "Instructors workload retrieved successfully.",
+                    Data = students
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<List<StudentsWithoutPayment>>
+                {
+                    Success = false,
+                    Message = "Error retrieving revenue by track.",
+                    ErrorCode = 500,
+                    Errors = new List<string> { ex.Message }
+                };
+            }
+        }
+    }
+}
