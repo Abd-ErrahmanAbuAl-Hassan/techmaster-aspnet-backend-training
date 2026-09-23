@@ -60,6 +60,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Controllers
             {
                 if (result.ErrorCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
                 else if (result.ErrorCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
+                else if (result.ErrorCode == 409) return StatusCode(StatusCodes.Status409Conflict, result);
                 else if (result.ErrorCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
             }
             return Ok(result);

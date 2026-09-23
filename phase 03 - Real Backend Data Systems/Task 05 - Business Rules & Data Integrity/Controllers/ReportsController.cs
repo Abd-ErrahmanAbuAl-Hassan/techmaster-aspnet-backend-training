@@ -18,6 +18,12 @@ namespace Task_05_Business_Rules_Data_Integrity.Controllers
         public async Task<IActionResult> GetDashboardSummary()
         {
             var result = await _reportService.GetDashboardSummaryAsync();
+            if (!result.Success)
+            {
+                if (result.ErrorCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
+                else if (result.ErrorCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
+                else if (result.ErrorCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
+            }
             return Ok(result);
         }
 
@@ -33,6 +39,12 @@ namespace Task_05_Business_Rules_Data_Integrity.Controllers
             });
 
             var result = await _reportService.GetUnpaidEnrollmentsAsync(pageNumber, pageSize);
+            if (!result.Success)
+            {
+                if (result.ErrorCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
+                else if (result.ErrorCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
+                else if (result.ErrorCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
+            }
             return Ok(result);
         }
 
@@ -48,6 +60,12 @@ namespace Task_05_Business_Rules_Data_Integrity.Controllers
             });
 
             var result = await _reportService.GetTrackCapacityAsync(pageNumber, pageSize);
+            if (!result.Success)
+            {
+                if (result.ErrorCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
+                else if (result.ErrorCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
+                else if (result.ErrorCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
+            }
             return Ok(result);
         }
 
@@ -63,6 +81,12 @@ namespace Task_05_Business_Rules_Data_Integrity.Controllers
             });
 
             var result = await _reportService.GetTracksWithAvailableSeatsAsync(pageNumber, pageSize);
+            if (!result.Success)
+            {
+                if (result.ErrorCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
+                else if (result.ErrorCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
+                else if (result.ErrorCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
+            }
             return Ok(result);
         }
 
@@ -70,6 +94,12 @@ namespace Task_05_Business_Rules_Data_Integrity.Controllers
         public async Task<IActionResult> GetRevenueSummary()
         {
             var result = await _reportService.GetRevenueSummaryAsync();
+            if (!result.Success)
+            {
+                if (result.ErrorCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
+                else if (result.ErrorCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
+                else if (result.ErrorCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
+            }
             return Ok(result);
         }
 
@@ -85,10 +115,16 @@ namespace Task_05_Business_Rules_Data_Integrity.Controllers
             });
 
             var result = await _reportService.GetRevenueByTrackAsync(pageNumber, pageSize);
+            if (!result.Success)
+            {
+                if (result.ErrorCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
+                else if (result.ErrorCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
+                else if (result.ErrorCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
+            }
             return Ok(result);
         }
         [HttpGet("top-tracks")]
-        public async Task<IActionResult> GetRevenueByTrack([FromQuery] int topCount = 1)
+        public async Task<IActionResult> GetTopTracksAsync([FromQuery] int topCount = 1)
         {
             if (topCount < 1) return BadRequest(new
             {
@@ -99,18 +135,36 @@ namespace Task_05_Business_Rules_Data_Integrity.Controllers
             });
 
             var result = await _reportService.GetTopTrackAsync(topCount);
+            if (!result.Success)
+            {
+                if (result.ErrorCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
+                else if (result.ErrorCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
+                else if (result.ErrorCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
+            }
             return Ok(result);
         }
         [HttpGet("instructors-workload")]
         public async Task<IActionResult> GetInstructorsWorkload()
         {
             var result = await _reportService.GetInstructorWorkLoadAsync();
+            if (!result.Success)
+            {
+                if (result.ErrorCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
+                else if (result.ErrorCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
+                else if (result.ErrorCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
+            }
             return Ok(result);
         }
         [HttpGet("students-without-payments")]
         public async Task<IActionResult> GetStudentsPaymentLess()
         {
             var result = await _reportService.GetStudentsWithoutPaymentsAsync();
+            if (!result.Success)
+            {
+                if (result.ErrorCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
+                else if (result.ErrorCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
+                else if (result.ErrorCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
+            }
             return Ok(result);
         }
     }

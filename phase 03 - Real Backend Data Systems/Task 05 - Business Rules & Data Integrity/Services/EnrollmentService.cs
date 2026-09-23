@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System.Drawing.Printing;
 using Task_05_Business_Rules_Data_Integrity.Data;
 using Task_05_Business_Rules_Data_Integrity.DTOs.Requests;
 using Task_05_Business_Rules_Data_Integrity.DTOs.Responses;
@@ -86,6 +85,14 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
         {
             try
             {
+                if (id < 1) return new ApiResponse<EnrollmentDetailsResponse>
+                {
+                    Success = false,
+                    Message = "Validation Errors.",
+                    ErrorCode = 400,
+                    Errors = new List<string> { "Enrollment ID must be positive number." }
+                };
+
                 var enrollment = await _context.Enrollments
                     .Include(e => e.Student)
                     .Include(e => e.TrainingTrack)
@@ -131,9 +138,9 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 if (student == null)
                     errors.Add("Student not found.");
 
-                var track = await _context.TrainingTracks.FirstOrDefaultAsync(t => t.Id == request.TrainingTrackId 
-                                                                                && t.Status == TrackStatus.Published
-                                                                                || t.Status == TrackStatus.Closed);
+                var track = await _context.TrainingTracks.FirstOrDefaultAsync(t => t.Id == request.TrainingTrackId
+                                                                                && (t.Status == TrackStatus.Published
+                                                                                || t.Status == TrackStatus.Closed));
                 if (track == null)
                     errors.Add("Track not found.");
 
@@ -155,8 +162,8 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         Errors = new List<string> { "This track is closed and cannot accept new enrollments." }
                     };
 
-            
-                if (!request.AllowInactiveStudent && !student.IsDeleted)
+
+                if (!request.AllowInactiveStudent && (student.IsDeleted || !student.IsActive))
                     return new ApiResponse<EnrollmentDetailsResponse>
                     {
                         Success = false,
@@ -175,8 +182,8 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                     };
 
                 var enrolledCount = await _context.Enrollments
-                    .Where(e => e.TrainingTrackId == request.TrainingTrackId 
-                             && e.Status == EnrollmentStatus.Completed 
+                    .Where(e => e.TrainingTrackId == request.TrainingTrackId
+                             && e.Status == EnrollmentStatus.Completed
                              || e.Status == EnrollmentStatus.Active)
                     .CountAsync();
 
@@ -227,6 +234,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
 
         public async Task<ApiResponse<EnrollmentDetailsResponse>> UpdateEnrollmentStatusAsync(int id, EnrollmentStatus status)
         {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 var errors = new List<string>();
@@ -267,7 +275,10 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                     };
 
                 enrollment.Status = status;
+                if (status == EnrollmentStatus.Cancelled) RefundCanceledEnrollment(enrollment);
+                
                 await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
 
                 return new ApiResponse<EnrollmentDetailsResponse>
                 {
@@ -278,6 +289,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
                 return new ApiResponse<EnrollmentDetailsResponse>
                 {
                     Success = false,
@@ -318,6 +330,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
 
                 var query = _context.Enrollments
                     .Include(e => e.TrainingTrack)
+                    .Include(e => e.Payments)
                     .Where(e => e.StudentId == studentId);
 
                 var totalCount = await query.CountAsync();
@@ -342,7 +355,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                     TrackTitle = e.TrainingTrack?.Title ?? string.Empty,
                     Status = e.Status,
                     EnrollmentDate = e.EnrollmentDate,
-                    PaymentStatus = CalculatePaymentStatus(e.Id, e.TrainingTrack?.Price ?? 0,out var _)
+                    PaymentStatus = PaymentCalculator.Calculate(e).Status
                 }).ToList();
 
                 return new ApiResponse<PagedResult<EnrollmentSummaryResponse>>
@@ -380,7 +393,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 if (pageSize < 1) errors.Add("Page size must be positive number.");
                 if (pageSize > 50) errors.Add("Page size must be at most 50.");
 
-                if(errors.Any())
+                if (errors.Any())
                     return new ApiResponse<PagedResult<TrackEnrollmentStudents>>
                     {
                         Success = false,
@@ -402,8 +415,8 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
 
                 var query = _context.Enrollments
                     .Include(e => e.Student)
-                    .Where(e => e.TrainingTrackId == trackId && 
-                               (e.Status == EnrollmentStatus.Active || 
+                    .Where(e => e.TrainingTrackId == trackId &&
+                               (e.Status == EnrollmentStatus.Active ||
                                 e.Status == EnrollmentStatus.Completed)) // only active or completed counts as enrolled
                     .AsQueryable();
 
@@ -458,11 +471,40 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
+        private void RefundCanceledEnrollment(Enrollment enrollment)
+        {
+            try
+            {
+                // Sum collected payments
+                var totalCollected = enrollment.Payments
+                    .Where(p => p.PaymentStatus == PaymentStatus.Paid
+                             || p.PaymentStatus == PaymentStatus.PartiallyPaid)
+                    .Sum(p => p.Amount);
 
+                // Create refund row if any money was collected
+                if (totalCollected > 0)
+                {
+                    _context.Payments.Add(new Payment
+                    {
+                        EnrollmentId = enrollment.Id,
+                        Amount = totalCollected,
+                        PaymentMethod = PaymentMethod.BankTransfer,
+                        PaymentDate = DateTime.UtcNow,
+                        PaymentStatus = PaymentStatus.Refunded,
+                        ReferenceNumber = $"REF-{enrollment.Id}-{Guid.NewGuid():N}"[..20],
+                        Notes = $"Full refund on cancellation of enrollment #{enrollment.Id}"
+                    });
+                }
+
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
         private EnrollmentDetailsResponse MapToEnrollmentDetailsResponse(Enrollment enrollment)
         {
-            var trackPrice = enrollment.TrainingTrack?.Price ?? 0;
-            var paymentStatus = CalculatePaymentStatus(enrollment.Id, trackPrice ,out var totalPaid);
+            var (paymentStatus, totalPaid) = PaymentCalculator.Calculate(enrollment);
 
             return new EnrollmentDetailsResponse
             {
@@ -500,21 +542,6 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                     })
                     .ToList() ?? new List<PaymentResponse>()
             };
-        }
-
-        private PaymentStatus CalculatePaymentStatus(int enrollmentId, decimal trackPrice, out decimal totalPaid)
-        {
-            totalPaid = _context.Payments
-                .Where(p => p.EnrollmentId == enrollmentId
-                            && (p.PaymentStatus == PaymentStatus.Paid || p.PaymentStatus == PaymentStatus.PartiallyPaid))
-                .Sum(p => p.Amount);
-
-            if (totalPaid >= trackPrice)
-                return PaymentStatus.Paid;
-            else if (totalPaid > 0)
-                return PaymentStatus.PartiallyPaid;
-            else
-                return PaymentStatus.Pending;
         }
 
         private bool IsValidStatusTransition(EnrollmentStatus currentStatus, EnrollmentStatus newStatus)

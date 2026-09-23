@@ -11,8 +11,6 @@ namespace Task_05_Business_Rules_Data_Integrity.DTOs.Requests
         public decimal Amount { get; set; }
         [Required]
         public PaymentMethod PaymentMethod { get; set; }
-        //[Required]
-        //public string ReferenceNumber { get; set; } 
-        public string? Notes { get; set; }
+        public string Notes { get; set; }
     }
 }

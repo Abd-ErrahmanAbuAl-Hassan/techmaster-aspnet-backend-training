@@ -1,5 +1,4 @@
-﻿using Azure.Core;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using Task_05_Business_Rules_Data_Integrity.Data;
 using Task_05_Business_Rules_Data_Integrity.DTOs.Requests;
@@ -20,10 +19,27 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
             _context = context;
         }
 
-        public async Task<ApiResponse<PagedResult<TrackDetailsResponse>>> GetTracksAsync(int pageNumber = 1, int pageSize = 10, string? keyword = null, TrackLevel? level = null, TrackStatus? status = null, int? instructorId = null)
+        public async Task<ApiResponse<PagedResult<TrackDetailsResponse>>> GetTracksAsync(int pageNumber = 1, int pageSize = 10, string keyword = null, TrackLevel? level = null, TrackStatus? status = null, int? instructorId = null)
         {
             try
             {
+
+                var errors = new List<string>();
+                if (instructorId.HasValue && instructorId.Value < 1) errors.Add("Instructor ID must be a positive number.");
+                if (pageNumber < 1) errors.Add("Page number must be positive number.");
+                if (pageSize < 1) errors.Add("Page size must be positive number.");
+                if (pageSize > 50) errors.Add("Page size must be at most 50.");
+                if (!Enum.IsDefined(typeof(TrackLevel), level)) errors.Add("Track level is invalid.");
+                if (!Enum.IsDefined(typeof(TrackStatus), status)) errors.Add("Track status is invalid.");
+
+                if (errors.Any())
+                    return new ApiResponse<PagedResult<TrackDetailsResponse>>
+                    {
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = errors
+                    };
                 var query = _context.TrainingTracks
                     .Include(t => t.Instructor)
                     .Include(t => t.Enrollments)
@@ -81,11 +97,18 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<TrackDetailsResponse>> GetTrackByIdAsync(int id)
         {
             try
             {
+                if (id < 1) return new ApiResponse<TrackDetailsResponse>
+                {
+                    Success = false,
+                    Message = "Validation Errors.",
+                    ErrorCode = 400,
+                    Errors = new List<string> { "Track ID must be positive number." }
+                };
+
                 var track = await _context.TrainingTracks
                     .Include(t => t.Instructor)
                     .Include(t => t.Enrollments)
@@ -117,26 +140,22 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<TrackDetailsResponse>> CreateTrackAsync(CreateTrackRequest request)
         {
             try
             {
                 var errors = new List<string>();
 
-                if (string.IsNullOrWhiteSpace(request.Title))
-                    errors.Add("Track name is required.");
-                if (string.IsNullOrWhiteSpace(request.Description))
-                    errors.Add("Track description is required.");
-                if (request.Capacity <= 0)
-                    errors.Add("Capacity must be greater than zero.");
-                if (request.Price <= 0)
-                    errors.Add("Price must be greater than zero.");
-                if (request.StartDate >= request.EndDate)
-                    errors.Add("StartDate must be before EndDate.");
+                if (string.IsNullOrWhiteSpace(request.Title)) errors.Add("Track name is required.");
+                if (string.IsNullOrWhiteSpace(request.Description)) errors.Add("Track description is required.");
+                if (request.Capacity <= 0) errors.Add("Capacity must be greater than zero.");
+                if (request.InstructorId < 1) errors.Add("Instructor ID must be positive number.");
+                if (request.Price <= 0) errors.Add("Price must be greater than zero.");
+                if (request.StartDate >= request.EndDate) errors.Add("StartDate must be before EndDate.");
+                if (!Enum.IsDefined(typeof(TrackLevel), request.Level)) errors.Add("Track level is invalid.");
 
                 var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.Id == request.InstructorId);
-                if (instructor == null)
+                if (!(request.InstructorId < 1) && instructor == null)
                     errors.Add("Instructor not found.");
 
                 if (errors.Any())
@@ -179,7 +198,6 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                     StartDate = request.StartDate,
                     EndDate = request.EndDate,
                     IsActive = true
-                    //CreatedAt = DateTime.UtcNow
                 };
 
                 _context.TrainingTracks.Add(track);
@@ -208,11 +226,19 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<TrackDetailsResponse>> UpdateTrackAsync(int id, UpdateTrackRequest request)
         {
             try
             {
+                var errors = new List<string>();
+                if (id < 1) errors.Add("Track ID must be positive number.");
+                if (request.InstructorId < 1) errors.Add("Instructor ID must be positive number.");
+                if (request.Level.HasValue && !Enum.IsDefined(typeof(TrackLevel), request.Level.Value)) errors.Add("Track level is invalid.");
+                if (request.StartDate.HasValue != request.EndDate.HasValue) errors.Add("Both start and end dates must be provided together.");
+                if (request.StartDate.HasValue && request.EndDate.HasValue && request.StartDate.Value > request.EndDate.Value) errors.Add("Start date must be less than or equal End date.");
+                if (request.Capacity.HasValue && request.Capacity <= 0) errors.Add("Capacity must be greater than zero.");
+                if (request.Price.HasValue && request.Price <= 0) errors.Add("Price must be greater than zero.");
+
                 var track = await _context.TrainingTracks
                     .Include(t => t.Instructor)
                     .Include(t => t.Enrollments)
@@ -235,19 +261,12 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         Errors = new List<string> { $"Instructor id:{request.InstructorId} not allowed to access." }
                     };
 
-                var errors = new List<string>();
-
-                if (request.Capacity.HasValue && request.Capacity <= 0)
-                    errors.Add("Capacity must be greater than zero.");
-
-                if (request.Price.HasValue && request.Price <= 0)
-                    errors.Add("Price must be greater than zero.");
-
                 var effectiveStart = request.StartDate ?? track.StartDate;
                 var effectiveEnd = request.EndDate ?? track.EndDate;
                 if (effectiveStart >= effectiveEnd)
                     errors.Add("StartDate must be before EndDate.");
-
+                if (request.Capacity.HasValue && request.Capacity.Value < track.Enrollments.Count(e => e.Status == EnrollmentStatus.Active || e.Status == EnrollmentStatus.Completed))
+                    errors.Add("Capacity cannot be less than the number of currently enrolled students.");
                 if (errors.Any())
                     return new ApiResponse<TrackDetailsResponse>
                     {
@@ -272,7 +291,6 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 if (request.EndDate.HasValue)
                     track.EndDate = request.EndDate.Value;
 
-                //track.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
                 return new ApiResponse<TrackDetailsResponse>
@@ -293,11 +311,23 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<string>> DeleteTrackAsync(int id, int InstructorId)
         {
             try
             {
+
+                var errors = new List<string>();
+                if (id < 1) errors.Add("Track ID must be positive number.");
+                if (InstructorId < 1) errors.Add("Instructor ID must be positive number.");
+
+                if (errors.Any())
+                    return new ApiResponse<string>
+                    {
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = errors
+                    };
                 var track = await _context.TrainingTracks
                     .Include(t => t.Enrollments)
                     .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted);
@@ -351,10 +381,9 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         private TrackDetailsResponse MapToTrackDetailsResponse(TrainingTrack track)
         {
-            var enrolledCount = track.Enrollments?.Count(e => e.Status == EnrollmentStatus.Active) ?? 0;
+            var enrolledCount = track.Enrollments?.Count(e => e.Status == EnrollmentStatus.Active || e.Status == EnrollmentStatus.Completed) ?? 0;
             return new TrackDetailsResponse
             {
                 Id = track.Id,

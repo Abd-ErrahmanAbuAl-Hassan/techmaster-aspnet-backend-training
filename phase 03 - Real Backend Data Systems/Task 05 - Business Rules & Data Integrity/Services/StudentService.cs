@@ -1,6 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System.Globalization;
-using System.Text.RegularExpressions;
 using Task_05_Business_Rules_Data_Integrity.Data;
 using Task_05_Business_Rules_Data_Integrity.DTOs.Requests;
 using Task_05_Business_Rules_Data_Integrity.DTOs.Responses;
@@ -8,6 +6,7 @@ using Task_05_Business_Rules_Data_Integrity.Entities;
 using Task_05_Business_Rules_Data_Integrity.Services.Interfaces;
 using Task_05_Business_Rules_Data_Integrity.Utilities;
 using Task_05_Business_Rules_Data_Integrity.Utilities.Enums;
+
 
 namespace Task_05_Business_Rules_Data_Integrity.Services
 {
@@ -20,10 +19,24 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
             _context = context;
         }
 
-        public async Task<ApiResponse<PagedResult<StudentListItemResponse>>> GetStudentsAsync(int pageNumber = 1, int pageSize = 10, string? search = null, bool? isActive = null, bool? isDeleted = null)
+        public async Task<ApiResponse<PagedResult<StudentListItemResponse>>> GetStudentsAsync(int pageNumber = 1, int pageSize = 10, string search = null, bool? isActive = null, bool? isDeleted = null)
         {
             try
             {
+                var errors = new List<string>();
+                if (pageNumber < 1) errors.Add("Page number must be positive number.");
+                if (pageSize < 1) errors.Add("Page size must be positive number.");
+                if (pageSize > 50) errors.Add("Page size must be at most 50.");
+
+                if (errors.Any())
+                    return new ApiResponse<PagedResult<StudentListItemResponse>>
+                    {
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = errors
+                    };
+
                 var query = _context.Students.AsQueryable();
 
                 if (isActive.HasValue)
@@ -88,14 +101,23 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<StudentDetailsResponse>> GetStudentByIdAsync(int id)
         {
             try
             {
+                if (id < 1) return new ApiResponse<StudentDetailsResponse>
+                {
+                    Success = false,
+                    Message = "Validation Errors.",
+                    ErrorCode = 400,
+                    Errors = new List<string> { "Student ID must be positive number." }
+                };
+
                 var student = await _context.Students
                     .Include(s => s.Enrollments!)
                         .ThenInclude(e => e.TrainingTrack)
+                    .Include(s => s.Enrollments!)
+                        .ThenInclude(e => e.Payments)
                     .FirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted);
 
                 if (student == null)
@@ -115,14 +137,14 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                     IsActive = student.IsActive,
                     CreatedAt = student.CreatedAt,
                     UpdatedAt = student.UpdatedAt,
-                    EnrollmentCount = student.Enrollments?.Count ?? 0,
+                    EnrollmentCount = student.Enrollments?.Where(e=>e.Status == EnrollmentStatus.Active || e.Status == EnrollmentStatus.Completed).Count() ?? 0,
                     Enrollments = student.Enrollments?.Select(e => new EnrollmentSummaryResponse
                     {
                         Id = e.Id,
                         TrackTitle = e.TrainingTrack?.Title ?? string.Empty,
                         Status = e.Status,
                         EnrollmentDate = e.EnrollmentDate,
-                        PaymentStatus = GetPaymentStatus(e.Id)
+                        PaymentStatus = PaymentCalculator.Calculate(e).Status
                     }).ToList() ?? new List<EnrollmentSummaryResponse>()
                 };
 
@@ -144,12 +166,11 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<StudentDetailsResponse>> CreateStudentAsync(CreateStudentRequest request)
         {
             try
             {
-                var errors = ValidateStudentRequest(request);
+                var errors = PersonValidator.Validate(request);
                 if (errors.Any())
                     return new ApiResponse<StudentDetailsResponse>
                     {
@@ -168,6 +189,15 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         Errors = new List<string> { "Email already exists." }
                     };
 
+                if (await _context.Students.AnyAsync(s => s.PhoneNumber == request.PhoneNumber))
+                    return new ApiResponse<StudentDetailsResponse>
+                    {
+                        Success = false,
+                        Message = "Validation errors.",
+                        ErrorCode = 400,
+                        Errors = new List<string> { "Phone already exists." }
+                    };
+
                 var student = new Student
                 {
                     FName = request.FName,
@@ -175,7 +205,6 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                     Email = request.Email,
                     PhoneNumber = request.PhoneNumber,
                     IsActive = true
-                    //CreatedAt = DateTime.UtcNow
                 };
 
                 _context.Students.Add(student);
@@ -211,14 +240,21 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
-        public async Task<ApiResponse<StudentDetailsResponse>> UpdateStudentAsync(int id, UpdateStudentRequest request)
+        public async Task<ApiResponse<StudentResponse>> UpdateStudentAsync(int id, UpdateStudentRequest request)
         {
             try
             {
+                if (id < 1) return new ApiResponse<StudentResponse>
+                {
+                    Success = false,
+                    Message = "Validation Errors.",
+                    ErrorCode = 400,
+                    Errors = new List<string> { "Student ID must be positive number." }
+                };
+
                 var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted);
                 if (student == null)
-                    return new ApiResponse<StudentDetailsResponse>
+                    return new ApiResponse<StudentResponse>
                     {
                         Success = false,
                         Message = "Student not found.",
@@ -228,12 +264,24 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 if (!string.IsNullOrWhiteSpace(request.Email) && request.Email != student.Email)
                 {
                     if (await _context.Students.AnyAsync(s => s.Email == request.Email && s.Id != id))
-                        return new ApiResponse<StudentDetailsResponse>
+                        return new ApiResponse<StudentResponse>
                         {
                             Success = false,
                             Message = "Validation errors.",
                             ErrorCode = 400,
                             Errors = new List<string> { "Email already exists." }
+                        };
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.PhoneNumber) && request.PhoneNumber != student.PhoneNumber)
+                {
+                    if (await _context.Students.AnyAsync(s => s.PhoneNumber == request.PhoneNumber && s.Id != id))
+                        return new ApiResponse<StudentResponse>
+                        {
+                            Success = false,
+                            Message = "Validation errors.",
+                            ErrorCode = 400,
+                            Errors = new List<string> { "Phone number already exists." }
                         };
                 }
 
@@ -248,10 +296,9 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 if (request.IsActive.HasValue)
                     student.IsActive = request.IsActive.Value;
 
-                //student.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
-                var response = new StudentDetailsResponse
+                var response = new StudentResponse
                 {
                     Id = student.Id,
                     FullName = student.FullName,
@@ -259,12 +306,10 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                     PhoneNumber = student.PhoneNumber,
                     IsActive = student.IsActive,
                     CreatedAt = student.CreatedAt,
-                    UpdatedAt = student.UpdatedAt,
-                    EnrollmentCount = student.Enrollments?.Count() ?? 0,
-                    Enrollments = new List<EnrollmentSummaryResponse>()
+                    UpdatedAt = student.UpdatedAt
                 };
 
-                return new ApiResponse<StudentDetailsResponse>
+                return new ApiResponse<StudentResponse>
                 {
                     Success = true,
                     Message = "Student updated successfully.",
@@ -273,7 +318,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
             }
             catch (Exception ex)
             {
-                return new ApiResponse<StudentDetailsResponse>
+                return new ApiResponse<StudentResponse>
                 {
                     Success = false,
                     Message = "Error updating student.",
@@ -282,11 +327,18 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<string>> DeleteStudentAsync(int id)
         {
             try
             {
+                if (id < 1) return new ApiResponse<string>
+                {
+                    Success = false,
+                    Message = "Validation Errors.",
+                    ErrorCode = 400,
+                    Errors = new List<string> { "Student ID must be positive number." }
+                };
+
                 var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted);
                 if (student == null)
                     return new ApiResponse<string>
@@ -318,54 +370,6 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                     Errors = new List<string> { ex.Message }
                 };
             }
-        }
-
-        private List<string> ValidateStudentRequest(CreateStudentRequest request)
-        {
-            var errors = new List<string>();
-
-            if (string.IsNullOrWhiteSpace(request.FName))
-                errors.Add("First name is required.");
-            if (string.IsNullOrWhiteSpace(request.LName))
-                errors.Add("Last name is required.");
-            if (string.IsNullOrWhiteSpace(request.Email))
-                errors.Add("Email is required.");
-            else if (!IsValidEmail(request.Email))
-                errors.Add("Email format is invalid.");
-            if (string.IsNullOrWhiteSpace(request.PhoneNumber))
-                errors.Add("Phone number is required.");
-            else if (!IsValidPhoneNumber(request.PhoneNumber))
-                errors.Add("Phone number format is invalid.");
-
-            return errors;
-        }
-
-        private bool IsValidEmail(string email)
-        {
-            return Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
-        }
-
-        private bool IsValidPhoneNumber(string phoneNumber)
-        {
-            return Regex.IsMatch(phoneNumber, @"^01[0125]\d{8}$");
-        }
-
-        private PaymentStatus GetPaymentStatus(int enrollmentId)
-        {
-            var totalPrice = _context.Enrollments
-                .Include(e => e.TrainingTrack)
-                .FirstOrDefault(e => e.Id == enrollmentId)?.TrainingTrack?.Price ?? 0;
-
-            var totalPaid = _context.Payments
-                .Where(p => p.EnrollmentId == enrollmentId && p.PaymentStatus == PaymentStatus.Paid)
-                .Sum(p => p.Amount);
-
-            if (totalPaid >= totalPrice)
-                return PaymentStatus.Paid;
-            else if (totalPaid > 0)
-                return PaymentStatus.PartiallyPaid;
-            else
-                return PaymentStatus.Pending;
         }
     }
 }

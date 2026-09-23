@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System.Text.RegularExpressions;
 using Task_05_Business_Rules_Data_Integrity.Data;
 using Task_05_Business_Rules_Data_Integrity.DTOs.Requests;
 using Task_05_Business_Rules_Data_Integrity.DTOs.Responses;
@@ -23,6 +22,21 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
         {
             try
             {
+
+                var errors = new List<string>();
+                if (pageNumber < 1) errors.Add("Page number must be positive number.");
+                if (pageSize < 1) errors.Add("Page size must be positive number.");
+                if (pageSize > 50) errors.Add("Page size must be at most 50.");
+
+                if (errors.Any())
+                    return new ApiResponse<PagedResult<InstructorBasicResponse>>
+                    {
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = errors
+                    };
+
                 var query = _context.Instructors.Where(i => i.IsActive);
                 var totalCount = await query.CountAsync();
                 var instructors = await query
@@ -70,11 +84,19 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<InstructorBasicResponse>> GetInstructorByIdAsync(int id)
         {
             try
             {
+                if(id < 1 ) return new ApiResponse<InstructorBasicResponse>
+                {
+                    Success = false,
+                    Message = "Validation Errors.",
+                    ErrorCode = 400,
+                    Errors = new List<string> { "Instructor id must be positive number." }
+                };
+
+
                 var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.Id == id && i.IsActive);
                 if (instructor == null)
                     return new ApiResponse<InstructorBasicResponse>
@@ -107,11 +129,25 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<PagedResult<TrackDetailsResponse>>> GetInstructorTracksAsync(int instructorId, int pageNumber = 1, int pageSize = 10)
         {
             try
             {
+                var errors = new List<string>();
+                if (instructorId < 1) errors.Add("Track ID must be positive number.");
+                if (pageNumber < 1) errors.Add("Page number must be positive number.");
+                if (pageSize < 1) errors.Add("Page size must be positive number.");
+                if (pageSize > 50) errors.Add("Page size must be at most 50.");
+
+                if (errors.Any())
+                    return new ApiResponse<PagedResult<TrackDetailsResponse>>
+                    {
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = errors
+                    };
+
                 var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.Id == instructorId && i.IsActive);
                 if (instructor == null)
                     return new ApiResponse<PagedResult<TrackDetailsResponse>>
@@ -200,13 +236,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         Errors = new List<string> { "Request cannot be null." }
                     };
 
-                if (string.IsNullOrWhiteSpace(request.FName)) errors.Add("First name is required.");
-                if (string.IsNullOrWhiteSpace(request.LName)) errors.Add("Last name is required.");
-                if (string.IsNullOrWhiteSpace(request.Email)) errors.Add("Email is required.");
-                else if (!Regex.IsMatch(request.Email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$")) errors.Add("Email format is invalid.");
-                if (string.IsNullOrWhiteSpace(request.Specialization)) errors.Add("Specialization is required.");
-                if (string.IsNullOrWhiteSpace(request.Bio)) errors.Add("Bio is required.");
-
+                errors = PersonValidator.Validate(request);
                 if (errors.Any())
                     return new ApiResponse<InstructorBasicResponse>
                     {
@@ -225,6 +255,15 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         Errors = new List<string> { "Email already exists." }
                     };
 
+                if (await _context.Instructors.AnyAsync(i => i.PhoneNumber == request.PhoneNumber))
+                    return new ApiResponse<InstructorBasicResponse>
+                    {
+                        Success = false,
+                        Message = "Validation errors.",
+                        ErrorCode = 400,
+                        Errors = new List<string> { "Phone number already exists." }
+                    };
+
                 var instructor = new Instructor
                 {
                     FName = request.FName,
@@ -234,7 +273,6 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                     Specialization = request.Specialization,
                     Bio = request.Bio,
                     IsActive = true
-                    //CreatedAt = DateTime.UtcNow
                 };
 
                 _context.Instructors.Add(instructor);
@@ -263,11 +301,18 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<InstructorBasicResponse>> UpdateInstructorAsync(int id, UpdateInstructorRequest request)
         {
             try
             {
+                if(id < 1) return new ApiResponse<InstructorBasicResponse>
+                {
+                    Success = false,
+                    Message = "Validation Errors.",
+                    ErrorCode = 400,
+                    Errors = new List<string> { "Instructor id must be positive number." }
+                };
+
                 var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.Id == id);
                 if (instructor == null)
                     return new ApiResponse<InstructorBasicResponse>
@@ -289,6 +334,18 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         };
                 }
 
+                if (!string.IsNullOrWhiteSpace(request.PhoneNumber) && request.PhoneNumber != instructor.PhoneNumber)
+                {
+                    if (await _context.Instructors.AnyAsync(i => i.PhoneNumber == request.PhoneNumber && i.Id != id))
+                        return new ApiResponse<InstructorBasicResponse>
+                        {
+                            Success = false,
+                            Message = "Validation errors.",
+                            ErrorCode = 400,
+                            Errors = new List<string> { "Email already exists." }
+                        };
+                }
+
                 if (!string.IsNullOrWhiteSpace(request.FName)) instructor.FName = request.FName;
                 if (!string.IsNullOrWhiteSpace(request.LName)) instructor.LName = request.LName;
                 if (!string.IsNullOrWhiteSpace(request.Email)) instructor.Email = request.Email;
@@ -297,7 +354,6 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 if (!string.IsNullOrWhiteSpace(request.PhoneNumber)) instructor.PhoneNumber = request.PhoneNumber;
                 if (request.IsActive.HasValue) instructor.IsActive = request.IsActive.Value;
 
-                //instructor.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
                 return new ApiResponse<InstructorBasicResponse>

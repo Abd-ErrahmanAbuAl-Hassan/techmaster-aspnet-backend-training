@@ -90,7 +90,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)")
-                        .HasColumnTitle("First Name");
+                        .HasColumnName("First Name");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -99,7 +99,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)")
-                        .HasColumnTitle("Last Name");
+                        .HasColumnName("Last Name");
 
                     b.Property<string>("PhoneNumber")
                         .IsRequired()
@@ -185,7 +185,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)")
-                        .HasColumnTitle("First Name");
+                        .HasColumnName("First Name");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -197,7 +197,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)")
-                        .HasColumnTitle("Last Name");
+                        .HasColumnName("Last Name");
 
                     b.Property<string>("PhoneNumber")
                         .IsRequired()

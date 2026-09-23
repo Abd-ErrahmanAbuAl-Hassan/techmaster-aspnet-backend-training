@@ -24,21 +24,32 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 var totalStudents = await _context.Students.CountAsync(s => s.IsActive);
                 var activeEnrollments = await _context.Enrollments.CountAsync(e => e.Status == EnrollmentStatus.Active);
                 var completedEnrollments = await _context.Enrollments.CountAsync(e => e.Status == EnrollmentStatus.Completed);
-                var totalTracks = await _context.TrainingTracks.CountAsync(t =>  !t.IsDeleted);
+                var totalTracks = await _context.TrainingTracks.CountAsync(t => !t.IsDeleted);
 
-                var totalRevenue = await _context.Payments
-                    .Where(p => p.PaymentStatus == PaymentStatus.Paid)
+                var collected = await _context.Payments
+                                .Where(p => p.PaymentStatus == PaymentStatus.Paid
+                                         || p.PaymentStatus == PaymentStatus.PartiallyPaid)
+                                .SumAsync(p => p.Amount);
+
+                var refunded = await _context.Payments
+                    .Where(p => p.PaymentStatus == PaymentStatus.Refunded)
                     .SumAsync(p => p.Amount);
 
-                var unpaidAmount = await _context.TrainingTracks
-                    .Include(t => t.Enrollments)
-                        .ThenInclude(e => e.Payments)
-                    .SumAsync(t => t.Price * t.Enrollments.Count(e => e.Status != EnrollmentStatus.Cancelled)
-                        - (t.Enrollments
-                            .Where(e => e.Status != EnrollmentStatus.Cancelled)
-                            .SelectMany(e => e.Payments)
-                            .Where(p => p.PaymentStatus == PaymentStatus.Paid)
-                            .Sum(p => p.Amount)));
+                var totalRevenue = collected - refunded;
+
+                var unpaidAmount = await _context.Enrollments
+                                .Where(e => e.Status == EnrollmentStatus.Draft)
+                                .Select(e => new
+                                {
+                                    e.TrainingTrack!.Price,
+                                    Paid = e.Payments
+                                        .Where(p => p.PaymentStatus == PaymentStatus.Paid
+                                                 || p.PaymentStatus == PaymentStatus.PartiallyPaid)
+                                        .Sum(p => p.Amount)
+                                })
+                                .Select(x => x.Price - x.Paid)
+                                .Where(owed => owed > 0)   // clamp at enrollment level, not grand total
+                                .SumAsync();
 
                 var response = new ReportDashboardResponse
                 {
@@ -73,40 +84,48 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
         {
             try
             {
-                var enrollments = await _context.Enrollments
-                    .Include(e => e.Student)
-                    .Include(e => e.TrainingTrack)
-                    .Include(e => e.Payments)
-                    .Where(e => e.Status == EnrollmentStatus.Draft) 
-                    .ToListAsync();
+                var errors = new List<string>();
+                if (pageNumber < 1) errors.Add("Page number must be positive number.");
+                if (pageSize < 1) errors.Add("Page size must be positive number.");
+                if (pageSize > 50) errors.Add("Page size must be at most 50.");
 
-                var unpaidEnrollments = enrollments
-                    .Where(e =>
+                if (errors.Any())
+                    return new ApiResponse<PagedResult<ReportUnpaidEnrollmentResponse>>
                     {
-                        var trackPrice = e.TrainingTrack?.Price ?? 0;
-                        var totalPaid = e.Payments?
-                            .Where(p => p.PaymentStatus == PaymentStatus.Paid || p.PaymentStatus == PaymentStatus.PartiallyPaid)
-                            .Sum(p => p.Amount) ?? 0;
-                        return totalPaid < trackPrice;
-                    })
-                    .Select(e => new ReportUnpaidEnrollmentResponse
-                    {
-                        EnrollmentId = e.Id,
-                        StudentTitle = e.Student?.FullName ?? string.Empty,
-                        TrackTitle = e.TrainingTrack?.Title ?? string.Empty,
-                        TrackPrice = e.TrainingTrack?.Price ?? 0,
-                        TotalPaid = e.Payments?
-                            .Where(p => p.PaymentStatus == PaymentStatus.Paid || p.PaymentStatus == PaymentStatus.PartiallyPaid)
-                            .Sum(p => p.Amount) ?? 0,
-                        EnrollmentDate = e.EnrollmentDate
-                    });
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = errors
+                    };
+
+
+                var unpaidEnrollments = await _context.Enrollments
+                            .Where(e => e.Status == EnrollmentStatus.Draft)
+                            .Select(e => new ReportUnpaidEnrollmentResponse
+                            {
+                                EnrollmentId = e.Id,
+                                StudentTitle = e.Student.FullName ?? string.Empty,
+                                TrackTitle = e.TrainingTrack.Title ?? string.Empty,
+                                TrackPrice = e.TrainingTrack.Price ,
+                                TotalPaid = PaymentCalculator.Calculate(e).TotalPaid,
+                                EnrollmentDate = e.EnrollmentDate
+                            })
+                            .Where(x => x.TotalPaid < x.TrackPrice)
+                            .OrderByDescending(x => x.EnrollmentDate).ToListAsync();
+
+                if (!unpaidEnrollments.Any()) return new ApiResponse<PagedResult<ReportUnpaidEnrollmentResponse>>
+                {
+                    Success = false,
+                    Message = "No unpaid enrollments are found.",
+                    ErrorCode = 404
+                };
 
                 var totalCount = unpaidEnrollments.Count();
                 var items = unpaidEnrollments
                     .Skip((pageNumber - 1) * pageSize)
                     .Take(pageSize)
                     .ToList();
-
+                
                 return new ApiResponse<PagedResult<ReportUnpaidEnrollmentResponse>>
                 {
                     Success = true,
@@ -136,6 +155,20 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
         {
             try
             {
+                var errors = new List<string>();
+                if (pageNumber < 1) errors.Add("Page number must be positive number.");
+                if (pageSize < 1) errors.Add("Page size must be positive number.");
+                if (pageSize > 50) errors.Add("Page size must be at most 50.");
+
+                if (errors.Any())
+                    return new ApiResponse<PagedResult<ReportTrackCapacityResponse>>
+                    {
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = errors
+                    };
+
                 var tracks = await _context.TrainingTracks
                     .Include(t => t.Enrollments)
                     .Where(t => !t.IsDeleted)
@@ -148,9 +181,16 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         TrackId = t.Id,
                         TrackTitle = t.Title,
                         Capacity = t.Capacity,
-                        Enrolled = t.Enrollments?.Count(e => e.Status == EnrollmentStatus.Active) ?? 0
+                        Enrolled = t.Enrollments?.Count(e => e.Status == EnrollmentStatus.Active || e.Status == EnrollmentStatus.Completed) ?? 0
                     })
                     .ToList();
+
+                if (!capacityReports.Any()) return new ApiResponse<PagedResult<ReportTrackCapacityResponse>>
+                {
+                    Success = false,
+                    Message = "No Tracks are found.",
+                    ErrorCode = 404
+                };
 
                 var totalCount = capacityReports.Count;
                 var items = capacityReports
@@ -187,6 +227,20 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
         {
             try
             {
+                var errors = new List<string>();
+                if (pageNumber < 1) errors.Add("Page number must be positive number.");
+                if (pageSize < 1) errors.Add("Page size must be positive number.");
+                if (pageSize > 50) errors.Add("Page size must be at most 50.");
+
+                if (errors.Any())
+                    return new ApiResponse<PagedResult<ReportTrackAvailableSeatsResponse>>
+                    {
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = errors
+                    };
+
                 var tracks = await _context.TrainingTracks
                     .Include(t => t.Enrollments)
                     .Where(t => !t.IsDeleted)
@@ -196,18 +250,25 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 var availableSeats = tracks
                     .Select(t =>
                     {
-                        var active = t.Enrollments?.Count(e => e.Status == EnrollmentStatus.Active) ?? 0;
-                        var remaining = t.Capacity - active;
+                        var seats = t.Enrollments?.Count(e => e.Status == EnrollmentStatus.Active || e.Status == EnrollmentStatus.Completed) ?? 0;
+                        var remaining = t.Capacity - seats;
                         return new ReportTrackAvailableSeatsResponse
                         {
                             TrackId = t.Id,
                             TrackTitle = t.Title,
                             Capacity = t.Capacity,
-                            ActiveEnrollments = active
+                            ActiveEnrollments = seats
                         };
                     })
                     .Where(r => r.RemainingSeats > 0)
                     .ToList();
+
+                if (!availableSeats.Any()) return new ApiResponse<PagedResult<ReportTrackAvailableSeatsResponse>>
+                {
+                    Success = false,
+                    Message = "No Tracks with available are found.",
+                    ErrorCode = 404
+                };
 
                 var totalCount = availableSeats.Count;
                 var items = availableSeats
@@ -244,12 +305,39 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
         {
             try
             {
-                var payments = await _context.Payments.ToListAsync();
+                var collected = await _context.Payments
+                    .Where(p => p.PaymentStatus == PaymentStatus.Paid || p.PaymentStatus == PaymentStatus.PartiallyPaid)
+                    .SumAsync(p => p.Amount);
 
-                var totalRevenue = payments.Sum(p => p.Amount);
-                var paidAmount = payments.Where(p => p.PaymentStatus == PaymentStatus.Paid).Sum(p => p.Amount);
-                var partiallyPaidAmount = payments.Where(p => p.PaymentStatus == PaymentStatus.PartiallyPaid).Sum(p => p.Amount);
-                var pendingAmount = payments.Where(p => p.PaymentStatus == PaymentStatus.Pending).Sum(p => p.Amount);
+                var refunded = await _context.Payments
+                    .Where(p => p.PaymentStatus == PaymentStatus.Refunded)
+                    .SumAsync(p => p.Amount);
+
+                var paidAmount = await _context.Payments
+                    .Where(p => p.PaymentStatus == PaymentStatus.Paid)
+                    .SumAsync(p => p.Amount);
+
+                var paidCount = await _context.Payments
+                    .CountAsync(p => p.PaymentStatus == PaymentStatus.Paid);
+
+                var totalCount = await _context.Payments.CountAsync();
+
+                var totalRevenue = collected - refunded;
+
+                var partiallyPaidAmount = await _context.Payments.Where(p => p.PaymentStatus == PaymentStatus.PartiallyPaid).SumAsync(p => p.Amount);
+                var pendingAmount = await _context.Enrollments
+                                .Where(e => e.Status == EnrollmentStatus.Draft)
+                                .Select(e => new
+                                {
+                                    e.TrainingTrack!.Price,
+                                    Paid = e.Payments
+                                        .Where(p => p.PaymentStatus == PaymentStatus.Paid
+                                                 || p.PaymentStatus == PaymentStatus.PartiallyPaid)
+                                        .Sum(p => p.Amount)
+                                })
+                                .Select(x => x.Price - x.Paid)
+                                .Where(owed => owed > 0)   // clamp at enrollment level, not grand total
+                                .SumAsync();
 
                 var response = new ReportRevenueSummaryResponse
                 {
@@ -257,8 +345,8 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                     PaidAmount = paidAmount,
                     PartiallyPaidAmount = partiallyPaidAmount,
                     PendingAmount = pendingAmount,
-                    TotalPayments = payments.Count,
-                    PaidCount = payments.Count(p => p.PaymentStatus == PaymentStatus.Paid)
+                    TotalPayments = totalCount,
+                    PaidCount = paidCount
                 };
 
                 return new ApiResponse<ReportRevenueSummaryResponse>
@@ -284,6 +372,20 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
         {
             try
             {
+                var errors = new List<string>();
+                if (pageNumber < 1) errors.Add("Page number must be positive number.");
+                if (pageSize < 1) errors.Add("Page size must be positive number.");
+                if (pageSize > 50) errors.Add("Page size must be at most 50.");
+
+                if (errors.Any())
+                    return new ApiResponse<PagedResult<ReportRevenueByTrackResponse>>
+                    {
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = errors
+                    };
+
                 var tracks = await _context.TrainingTracks
                     .Include(t => t.Enrollments)
                         .ThenInclude(e => e.Payments)
@@ -293,26 +395,34 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 var revenueByTrack = tracks
                     .Select(t =>
                     {
-                        var enrollmentCount = t.Enrollments?.Count(e => e.Status != EnrollmentStatus.Cancelled) ?? 0;
-                        var totalPaid = t.Enrollments?
-                            .Where(e => e.Status != EnrollmentStatus.Cancelled)
+                        var relevantEnrollments = t.Enrollments?
+                                                 .Where(e => e.Status != EnrollmentStatus.Cancelled)
+                                                 .ToList() ?? new List<Enrollment>();
+
+                        var enrollmentCount = relevantEnrollments.Count;
+                        var expectedRevenue = t.Price * enrollmentCount;
+                        var totalPaid = relevantEnrollments
                             .SelectMany(e => e.Payments)
-                            .Where(p => p.PaymentStatus == PaymentStatus.Paid)
-                            .Sum(p => p.Amount) ?? 0;
+                            .Where(p => p.PaymentStatus == PaymentStatus.Paid || p.PaymentStatus == PaymentStatus.PartiallyPaid)
+                            .Sum(p => p.Amount);
 
                         return new ReportRevenueByTrackResponse
                         {
-                            TrackId = t.Id,
-                            TrackTitle = t.Title,
-                            TrackPrice = t.Price,
                             EnrollmentCount = enrollmentCount,
-                            TotalRevenue = t.Price * enrollmentCount,
+                            TotalRevenue = expectedRevenue,
                             TotalPaid = totalPaid,
-                            Outstanding = (t.Price * enrollmentCount) - totalPaid
+                            Outstanding = Math.Max(0, expectedRevenue - totalPaid)
                         };
                     })
                     .OrderByDescending(r => r.TotalRevenue)
                     .ToList();
+
+                if (!revenueByTrack.Any()) return new ApiResponse<PagedResult<ReportRevenueByTrackResponse>>
+                {
+                    Success = false,
+                    Message = "No Tracks are found.",
+                    ErrorCode = 404
+                };
 
                 var totalCount = revenueByTrack.Count;
                 var items = revenueByTrack
@@ -349,6 +459,15 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
         {
             try
             {
+                if (topCount < 1) 
+                    return new ApiResponse<List<TrackMiniDetailsResponse>>
+                    {
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = new List<string> { "The count must be a positive number."}
+                    };
+
                 var tracks = await _context.TrainingTracks.Include(t => t.Enrollments)
                     .Select(t => new TrackMiniDetailsResponse
                     {
@@ -356,23 +475,16 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         Title = t.Title,
                         Level = t.Level,
                         Status = t.Status,
-                        EnrolledCount = t.Enrollments.Count()
+                        EnrolledCount = t.Enrollments.Where(e=>e.Status == EnrollmentStatus.Active || e.Status == EnrollmentStatus.Completed).Count()
 
                     }).OrderByDescending(t => t.EnrolledCount).Take(topCount).ToListAsync();
 
-
-                // using Group by 
-                //var tracks =  await _context.Enrollments.Include(e => e.TrainingTrack).GroupBy(e => e.TrainingTrackId)
-                //    .Select(
-                //    t => new TrackMiniDetailsResponse
-                //    {
-                //        Id = t.Select(e => e.TrainingTrackId).First(),
-                //        Title = t.Select(e => e.TrainingTrack.Title).First(),
-                //        Level = t.Select(e => e.TrainingTrack.Level).First(),
-                //        Status = t.Select(e => e.TrainingTrack.Status).First(),
-                //        EnrolledCount = t.Count()
-
-                //    }).OrderByDescending(o=>o.EnrolledCount).Take(topCount).ToListAsync();
+                if(!tracks.Any()) return new ApiResponse<List<TrackMiniDetailsResponse>>
+                {
+                    Success = false,
+                    Message = "No tracks are found.",
+                    ErrorCode = 404
+                };
 
                 return new ApiResponse<List<TrackMiniDetailsResponse>>
                 {
@@ -403,9 +515,16 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                             Id = i.Id,
                             FullName = i.FullName,
                             Email = i.Email,
-                            ActiveStudents = i.TrainingTracks.SelectMany(t => t.Enrollments).Count(e => e.Status == EnrollmentStatus.Active),
+                            ActiveStudents = i.TrainingTracks.SelectMany(t => t.Enrollments).Count(e => e.Status == EnrollmentStatus.Active || e.Status == EnrollmentStatus.Completed),
                             TrackCount = i.TrainingTracks.Count()
                         }).ToListAsync();
+
+                if (!instructors.Any()) return new ApiResponse<List<InstructorWorkLoadResponse>>
+                {
+                    Success = false,
+                    Message = "No instructors are found.",
+                    ErrorCode = 404
+                };
 
                 return new ApiResponse<List<InstructorWorkLoadResponse>>
                 {
@@ -431,24 +550,26 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
         {
             try
             {
-                var students = await _context.Students.Select(s => new StudentsWithoutPayment
-                {
-                    Id = s.Id,
-                    FullName = s.FullName,
-                    Email = s.Email,
-                    Payments = s.Enrollments.Where(e => e.Status == EnrollmentStatus.Draft).SelectMany(e => e.Payments)
-                        .Where(p => p.PaymentStatus != PaymentStatus.Paid)
-                        .Select(p => new PaymentResponse
-                        {
-                            Id = p.Id,
-                            Amount = p.Amount,
-                            PaymentDate = p.PaymentDate,
-                            ReferenceNumber = p.ReferenceNumber,
-                            PaymentStatus = p.PaymentStatus,
-                            PaymentMethod = p.PaymentMethod
-                        }).ToList()
+                var students = await _context.Students
+                             .Where(s => !s.IsDeleted)
+                             .Where(s => s.Enrollments.Any(e => e.Status == EnrollmentStatus.Draft
+                                 && !e.Payments.Any(p => p.PaymentStatus == PaymentStatus.Paid
+                                                      || p.PaymentStatus == PaymentStatus.PartiallyPaid)))
+                             .Select(s => new StudentsWithoutPayment
+                             {
+                                 Id = s.Id,
+                                 FullName = s.FullName,
+                                 Email = s.Email,
+                             })
+                             .ToListAsync();
 
-                }).ToListAsync();
+                if (!students.Any()) return new ApiResponse<List<StudentsWithoutPayment>>
+                {
+                    Success = false,
+                    Message = "No tracks are found.",
+                    ErrorCode = 404
+                };
+
                 return new ApiResponse<List<StudentsWithoutPayment>>
                 {
                     Success = true,

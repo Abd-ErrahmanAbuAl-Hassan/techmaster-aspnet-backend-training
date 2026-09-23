@@ -1,8 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Task_05_Business_Rules_Data_Integrity.Data;
 using Task_05_Business_Rules_Data_Integrity.Entities;
 using Task_05_Business_Rules_Data_Integrity.Utilities.Enums;
 
@@ -10,598 +7,396 @@ namespace Task_05_Business_Rules_Data_Integrity.Data
 {
     public static class SeedData
     {
-        public static async Task SeedAsync(ApplicationDbContext context)
+        public static async Task SeedAsync(ApplicationDbContext context, ILogger logger)
         {
+            if (await context.Instructors.AnyAsync())
+            {
+                logger.LogInformation("Database already contains data. Skipping seed.");
+                return;
+            }
+
+            logger.LogInformation("Seeding database...");
+
+            await using var transaction = await context.Database.BeginTransactionAsync();
+
             try
             {
-                // Seed Instructors
-                if (!context.Instructors.Any())
-                {
-                    var instructors = new List<Instructor>
-                    {
-                        new Instructor
-                        {
-                            FName = "Mohamed",
-                            LName = "Ali",
-                            Email = "mohammad.ali@training.com",
-                            PhoneNumber = "01001234567",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Instructor
-                        {
-                            FName = "Fatima",
-                            LName = "Ahmed",
-                            Email = "fatima.ahmed@training.com",
-                            PhoneNumber = "01102345678",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Instructor
-                        {
-                            FName = "Ali",
-                            LName = "Mahmoud",
-                            Email = "ali.mahmoud@training.com",
-                            PhoneNumber = "01201234567",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Instructor
-                        {
-                            FName = "Nour",
-                            LName = "Khaled",
-                            Email = "nour.khaled@training.com",
-                            PhoneNumber = "01001567890",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Instructor
-                        {
-                            FName = "Layla",
-                            LName = "Hassan",
-                            Email = "layla.hassan@training.com",
-                            PhoneNumber = "01102567890",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        }
-                    };
+                var instructors = SeedInstructors();
+                await context.Instructors.AddRangeAsync(instructors);
+                await context.SaveChangesAsync(); // needed so Instructor.Id is populated
 
-                    await context.Instructors.AddRangeAsync(instructors);
-                    await context.SaveChangesAsync();
-                }
+                var tracks = SeedTrainingTracks(instructors);
+                await context.TrainingTracks.AddRangeAsync(tracks);
+                await context.SaveChangesAsync(); // needed so TrainingTrack.Id is populated
 
-                // Seed Training Tracks
-                if (!context.TrainingTracks.Any())
-                {
-                    var instructors = await context.Instructors.ToListAsync();
-                    var tracks = new List<TrainingTrack>
-                    {
-                        new TrainingTrack
-                        {
-                            Title = "C# Fundamentals",
-                            Code = "CSE-456",
-                            Description = "Complete programming course to learn C# from the beginning",
-                            InstructorId = instructors[0].Id,
-                            Capacity = 30,
-                            Price = 500,
-                            Level = TrackLevel.Beginner,
-                            Status = TrackStatus.Published,
-                            CreatedAt = DateTime.UtcNow,
-                            IsDeleted = false
-                        },
-                        new TrainingTrack
-                        {
-                            Title = "Advanced ASP.NET Core",
-                            Code = "CSE-986",
-                            Description = "Advanced course to learn how to build web application using ASP.NET Core",
-                            InstructorId = instructors[1].Id,
-                            Capacity = 25,
-                            Price = 800,
-                            Level = TrackLevel.Advanced,
-                            Status = TrackStatus.Published,
-                            CreatedAt = DateTime.UtcNow,
-                            IsDeleted = false
-                        },
-                        new TrainingTrack
-                        {
-                            Title = "SQL Database",
-                            Code = "CSE-115",
-                            Description = "Learning design and querying relational databases",
-                            InstructorId = instructors[2].Id,
-                            Capacity = 35,
-                            Price = 600,
-                            Level = TrackLevel.Intermediate,
-                            Status = TrackStatus.Published,
-                            CreatedAt = DateTime.UtcNow,
-                            IsDeleted = false
-                        },
-                        new TrainingTrack
-                        {
-                            Title = "Entity Framework Core",
-                            Code = "CSE-489",
-                            Description = "Comprehensive course with Entity Framework Core using ASP.NET",
-                            InstructorId = instructors[3].Id,
-                            Capacity = 28,
-                            Price = 700,
-                            Level = TrackLevel.Intermediate,
-                            Status = TrackStatus.Published,
-                            CreatedAt = DateTime.UtcNow,
-                            IsDeleted = false
-                        },
-                        new TrainingTrack
-                        {
-                            Title = "RESTful APIs",
-                            Code = "CSE-987",
-                            Description = "Building a powerful and secure web interfaces using .NET",
-                            InstructorId = instructors[4].Id,
-                            Capacity = 32,
-                            Price = 750,
-                            Level = TrackLevel.Advanced,
-                            Status = TrackStatus.Published,
-                            CreatedAt = DateTime.UtcNow,
-                            IsDeleted = false
-                        },
-                        new TrainingTrack
-                        {
-                            Title = "Unit Testing و TDD",
-                            Code = "CSE-123",
-                            Description = "Developing high quality application through testing",
-                            InstructorId = instructors[0].Id,
-                            Capacity = 20,
-                            Price = 550,
-                            Level = TrackLevel.Intermediate,
-                            Status = TrackStatus.Draft,
-                            CreatedAt = DateTime.UtcNow,
-                            IsDeleted = false
-                        },
-                        new TrainingTrack
-                        {
-                            Title = "LINQ و Collections",
-                            Code = "CSE-065",
-                            Description = "Mastery Language Integrated Query and working with groups",
-                            InstructorId = instructors[1].Id,
-                            Capacity = 30,
-                            Price = 450,
-                            Level = TrackLevel.Intermediate,
-                            Status = TrackStatus.Published,
-                            CreatedAt = DateTime.UtcNow,
-                            IsDeleted = false
-                        }
-                    };
+                var students = SeedStudents();
+                await context.Students.AddRangeAsync(students);
+                await context.SaveChangesAsync(); // needed so Student.Id is populated
 
-                    await context.TrainingTracks.AddRangeAsync(tracks);
-                    await context.SaveChangesAsync();
-                }
+                var enrollments = SeedEnrollments(students, tracks);
+                await context.Enrollments.AddRangeAsync(enrollments);
+                await context.SaveChangesAsync(); // needed so Enrollment.Id is populated
 
-                // Seed Students
-                if (!context.Students.Any())
-                {
-                    var students = new List<Student>
-                    {
-                        new Student
-                        {
-                            FName = "Ahmed",
-                            LName = "Mohamed",
-                            Email = "ahmed.mohammad@student.com",
-                            PhoneNumber = "01001234567",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Sarah",
-                            LName = "Ali",
-                            Email = "sarah.ali@student.com",
-                            PhoneNumber = "01102345678",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Mahmoud",
-                            LName = "Hassan",
-                            Email = "mahmoud.hassan@student.com",
-                            PhoneNumber = "01201234567",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Rana",
-                            LName = "Khaled",
-                            Email = "rana.khaled@student.com",
-                            PhoneNumber = "01001567890",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Omar",
-                            LName = "Ibrahim",
-                            Email = "omar.ibrahim@student.com",
-                            PhoneNumber = "01102567890",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Lama",
-                            LName = "Mohamed",
-                            Email = "lama.mohammad@student.com",
-                            PhoneNumber = "01201567890",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Khaled",
-                            LName = "Ahmed",
-                            Email = "khaled.ahmed@student.com",
-                            PhoneNumber = "01001890123",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Mira",
-                            LName = "Ali",
-                            Email = "mira.ali@student.com",
-                            PhoneNumber = "01102890123",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Ziad",
-                            LName = "Farouk",
-                            Email = "ziad.farouk@student.com",
-                            PhoneNumber = "01201890123",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Hana",
-                            LName = "Youssef",
-                            Email = "hana.youssef@student.com",
-                            PhoneNumber = "01001234890",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Youssef",
-                            LName = "Mahmoud",
-                            Email = "youssef.mahmoud@student.com",
-                            PhoneNumber = "01102234890",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Leah",
-                            LName = "Mohamed",
-                            Email = "leah.mohammad@student.com",
-                            PhoneNumber = "01201234890",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Nour",
-                            LName = "Ahmed",
-                            Email = "nour.ahmed@student.com",
-                            PhoneNumber = "01001345678",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Ghada",
-                            LName = "Ali",
-                            Email = "ghada.ali@student.com",
-                            PhoneNumber = "01102345678",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        },
-                        new Student
-                        {
-                            FName = "Sami",
-                            LName = "Mohamed",
-                            Email = "sami.mohammad@student.com",
-                            PhoneNumber = "01201345678",
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        }
-                    };
+                var payments = SeedPayments(enrollments, tracks);
+                await context.Payments.AddRangeAsync(payments);
+                await context.SaveChangesAsync();
 
-                    await context.Students.AddRangeAsync(students);
-                    await context.SaveChangesAsync();
-                }
+                // Now apply the same status logic the runtime would have applied:
+                // any enrollment whose payments fully cover the track price → Active.
+                await ActivateFullyPaidEnrollmentsAsync(context);
 
-                // Seed Enrollments
-                if (!context.Enrollments.Any())
-                {
-                    var students = await context.Students.ToListAsync();
-                    var tracks = await context.TrainingTracks.ToListAsync();
-                    var enrollments = new List<Enrollment>();
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[0].Id,
-                        TrainingTrackId = tracks[0].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-10),
-                        FinalGrade = null
-                    });
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[0].Id,
-                        TrainingTrackId = tracks[1].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-5),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[1].Id,
-                        TrainingTrackId = tracks[0].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-8),
-                        FinalGrade = null
-                    });
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[1].Id,
-                        TrainingTrackId = tracks[2].Id,
-                        Status = EnrollmentStatus.Completed,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-30),
-                        FinalGrade = 92.5m
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[2].Id,
-                        TrainingTrackId = tracks[1].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-12),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[3].Id,
-                        TrainingTrackId = tracks[2].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-15),
-                        FinalGrade = null
-                    });
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[3].Id,
-                        TrainingTrackId = tracks[3].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-3),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[4].Id,
-                        TrainingTrackId = tracks[3].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-7),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[5].Id,
-                        TrainingTrackId = tracks[4].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-20),
-                        FinalGrade = null
-                    });
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[5].Id,
-                        TrainingTrackId = tracks[5].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-1),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[6].Id,
-                        TrainingTrackId = tracks[0].Id,
-                        Status = EnrollmentStatus.Cancelled,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-25),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[7].Id,
-                        TrainingTrackId = tracks[1].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-9),
-                        FinalGrade = null
-                    });
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[7].Id,
-                        TrainingTrackId = tracks[4].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-4),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[8].Id,
-                        TrainingTrackId = tracks[2].Id,
-                        Status = EnrollmentStatus.Completed,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-35),
-                        FinalGrade = 88.0m
-                    });
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[8].Id,
-                        TrainingTrackId = tracks[6].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-2),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[9].Id,
-                        TrainingTrackId = tracks[3].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-6),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[10].Id,
-                        TrainingTrackId = tracks[0].Id,
-                        Status = EnrollmentStatus.Completed,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-40),
-                        FinalGrade = 95.0m
-                    });
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[10].Id,
-                        TrainingTrackId = tracks[6].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-11),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[11].Id,
-                        TrainingTrackId = tracks[4].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-14),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[12].Id,
-                        TrainingTrackId = tracks[1].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-18),
-                        FinalGrade = null
-                    });
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[12].Id,
-                        TrainingTrackId = tracks[5].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-5),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[13].Id,
-                        TrainingTrackId = tracks[2].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-22),
-                        FinalGrade = null
-                    });
-
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[14].Id,
-                        TrainingTrackId = tracks[0].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-13),
-                        FinalGrade = null
-                    });
-                    enrollments.Add(new Enrollment
-                    {
-                        StudentId = students[14].Id,
-                        TrainingTrackId = tracks[3].Id,
-                        Status = EnrollmentStatus.Active,
-                        EnrollmentDate = DateTime.UtcNow.AddDays(-8),
-                        FinalGrade = null
-                    });
-
-                    await context.Enrollments.AddRangeAsync(enrollments);
-                    await context.SaveChangesAsync();
-                }
-
-                // Seed Payments
-                if (!context.Payments.Any())
-                {
-                    var enrollments = await context.Enrollments
-                        .Include(e => e.TrainingTrack)
-                        .ToListAsync();
-
-                    var payments = new List<Payment>();
-
-                    // Add payments for various enrollments
-                    foreach (var enrollment in enrollments.Take(10))
-                    {
-                        // First payment - partial
-                        payments.Add(new Payment
-                        {
-                            EnrollmentId = enrollment.Id,
-                            Amount = enrollment.TrainingTrack!.Price / 2,
-                            PaymentMethod = PaymentMethod.CreditCard,
-                            PaymentDate = DateTime.UtcNow.AddDays(-5),
-                            PaymentStatus = PaymentStatus.Paid,
-                            ReferenceNumber = $"REF-{enrollment.Id}-001",
-                            Notes = "The first payment"
-                        });
-
-                        // Some get fully paid
-                        if (enrollment.StudentId % 2 == 0)
-                        {
-                            payments.Add(new Payment
-                            {
-                                EnrollmentId = enrollment.Id,
-                                Amount = enrollment.TrainingTrack!.Price / 2,
-                                PaymentMethod = PaymentMethod.BankTransfer,
-                                PaymentDate = DateTime.UtcNow.AddDays(-2),
-                                PaymentStatus = PaymentStatus.Paid,
-                                ReferenceNumber = $"REF-{enrollment.Id}-002",
-                                Notes = "The final payment"
-                            });
-                        }
-                    }
-
-                    // Add some pending payments
-                    foreach (var enrollment in enrollments.Skip(10).Take(5))
-                    {
-                        payments.Add(new Payment
-                        {
-                            EnrollmentId = enrollment.Id,
-                            Amount = 100,
-                            PaymentMethod = PaymentMethod.Cash,
-                            PaymentDate = DateTime.UtcNow,
-                            PaymentStatus = PaymentStatus.Pending,
-                            ReferenceNumber = $"REF-{enrollment.Id}-001",
-                            Notes = "Pending batch"
-                        });
-                    }
-
-                    await context.Payments.AddRangeAsync(payments);
-                    await context.SaveChangesAsync();
-                }
-
-                Console.WriteLine("Training data has been added successfully!");
+                await transaction.CommitAsync();
+                logger.LogInformation(
+                    "Seed complete: {Instructors} instructors, {Tracks} tracks, {Students} students, {Enrollments} enrollments, {Payments} payments.",
+                    instructors.Count, tracks.Count, students.Count, enrollments.Count, payments.Count);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error while adding the data: {ex.Message}");
+                await transaction.RollbackAsync();
+                logger.LogError(ex, "Seeding failed. Transaction rolled back.");
                 throw;
+            }
+        }
+
+        // --------------------------------------------------------------------
+        // Instructors
+        // --------------------------------------------------------------------
+        private static List<Instructor> SeedInstructors() => new()
+        {
+            new Instructor
+            {
+                FName = "Ahmed", LName = "Hassan",
+                Email = "ahmed.hassan@techmaster.test",
+                PhoneNumber = "01012345678",
+                Specialization = "Backend Development",
+                Bio = "Senior .NET engineer with 10+ years building enterprise APIs.",
+                IsActive = true
+            },
+            new Instructor
+            {
+                FName = "Sara", LName = "Mahmoud",
+                Email = "sara.mahmoud@techmaster.test",
+                PhoneNumber = "01112345678",
+                Specialization = "Frontend Development",
+                Bio = "React & TypeScript specialist. Loves clean UI and accessibility.",
+                IsActive = true
+            },
+            new Instructor
+            {
+                FName = "Omar", LName = "Ibrahim",
+                Email = "omar.ibrahim@techmaster.test",
+                PhoneNumber = "01212345678",
+                Specialization = "Cloud & DevOps",
+                Bio = "Azure-certified architect. Focused on scalable cloud-native systems.",
+                IsActive = true
+            },
+            new Instructor
+            {
+                FName = "Mona", LName = "Khaled",
+                Email = "mona.khaled@techmaster.test",
+                PhoneNumber = "01512345678",
+                Specialization = "Data Engineering",
+                Bio = "Data pipelines, warehousing, and analytics at scale.",
+                IsActive = false // one inactive for filter tests
+            }
+        };
+
+        // --------------------------------------------------------------------
+        // Training Tracks
+        // --------------------------------------------------------------------
+        private static List<TrainingTrack> SeedTrainingTracks(List<Instructor> instructors)
+        {
+            var ahmed = instructors[0];
+            var sara = instructors[1];
+            var omar = instructors[2];
+
+            return new List<TrainingTrack>
+            {
+                new TrainingTrack
+                {
+                    Title = "ASP.NET Core Web API",
+                    Code = "API101",
+                    Description = "Build production-ready REST APIs with .NET 8, EF Core, and clean architecture.",
+                    Price = 3500m,
+                    Level = TrackLevel.Intermediate,
+                    Capacity = 20,
+                    StartDate = DateTime.UtcNow.AddDays(7),
+                    EndDate   = DateTime.UtcNow.AddDays(67),
+                    Status = TrackStatus.Published,
+                    IsActive = true,
+                    InstructorId = ahmed.Id
+                },
+                new TrainingTrack
+                {
+                    Title = "Advanced Entity Framework Core",
+                    Code = "EFC201",
+                    Description = "Deep dive into EF Core: performance, migrations, and advanced mappings.",
+                    Price = 2800m,
+                    Level = TrackLevel.Advanced,
+                    Capacity = 15,
+                    StartDate = DateTime.UtcNow.AddDays(14),
+                    EndDate   = DateTime.UtcNow.AddDays(74),
+                    Status = TrackStatus.Published,
+                    IsActive = true,
+                    InstructorId = ahmed.Id
+                },
+                new TrainingTrack
+                {
+                    Title = "React & TypeScript Fundamentals",
+                    Code = "RTS101",
+                    Description = "Modern frontend development with React 18, hooks, and TypeScript.",
+                    Price = 3000m,
+                    Level = TrackLevel.Beginner,
+                    Capacity = 30,
+                    StartDate = DateTime.UtcNow.AddDays(3),
+                    EndDate   = DateTime.UtcNow.AddDays(63),
+                    Status = TrackStatus.Published,
+                    IsActive = true,
+                    InstructorId = sara.Id
+                },
+                new TrainingTrack
+                {
+                    Title = "Azure for Developers",
+                    Code = "AZR201",
+                    Description = "Deploy, scale, and monitor .NET apps on Azure App Service, SQL, and Key Vault.",
+                    Price = 4000m,
+                    Level = TrackLevel.Intermediate,
+                    Capacity = 25,
+                    StartDate = DateTime.UtcNow.AddDays(10),
+                    EndDate   = DateTime.UtcNow.AddDays(70),
+                    Status = TrackStatus.Published,
+                    IsActive = true,
+                    InstructorId = omar.Id
+                },
+                new TrainingTrack
+                {
+                    Title = "Docker & Kubernetes Essentials",
+                    Code = "K8S101",
+                    Description = "Containerize .NET apps and orchestrate them on Kubernetes.",
+                    Price = 3200m,
+                    Level = TrackLevel.Intermediate,
+                    Capacity = 10,
+                    StartDate = DateTime.UtcNow.AddDays(-30), // started
+                    EndDate   = DateTime.UtcNow.AddDays(30),
+                    Status = TrackStatus.Published,
+                    IsActive = true,
+                    InstructorId = omar.Id
+                },
+                new TrainingTrack
+                {
+                    Title = "Legacy .NET Framework Migration",
+                    Code = "MIG999",
+                    Description = "Archived course — no longer accepting enrollments.",
+                    Price = 2500m,
+                    Level = TrackLevel.Advanced,
+                    Capacity = 20,
+                    StartDate = DateTime.UtcNow.AddDays(-200),
+                    EndDate   = DateTime.UtcNow.AddDays(-100),
+                    Status = TrackStatus.Archived,
+                    IsActive = false,
+                    InstructorId = ahmed.Id
+                }
+            };
+        }
+
+        // --------------------------------------------------------------------
+        // Students
+        // --------------------------------------------------------------------
+        private static List<Student> SeedStudents() => new()
+        {
+            new Student { FName = "Youssef", LName = "Ali",     Email = "youssef.ali@student.test",     PhoneNumber = "01011111111", IsActive = true  },
+            new Student { FName = "Nour",    LName = "Samir",   Email = "nour.samir@student.test",      PhoneNumber = "01111111111", IsActive = true  },
+            new Student { FName = "Khaled",  LName = "Mostafa", Email = "khaled.mostafa@student.test",  PhoneNumber = "01211111111", IsActive = true  },
+            new Student { FName = "Layla",   LName = "Adel",    Email = "layla.adel@student.test",      PhoneNumber = "01511111111", IsActive = true  },
+            new Student { FName = "Hassan",  LName = "Tarek",   Email = "hassan.tarek@student.test",    PhoneNumber = "01022222222", IsActive = true  },
+            new Student { FName = "Dina",    LName = "Fathy",   Email = "dina.fathy@student.test",      PhoneNumber = "01122222222", IsActive = true  },
+            new Student { FName = "Karim",   LName = "Nabil",   Email = "karim.nabil@student.test",     PhoneNumber = "01222222222", IsActive = true  },
+            new Student { FName = "Aya",     LName = "Saeed",   Email = "aya.saeed@student.test",       PhoneNumber = "01522222222", IsActive = true  },
+            new Student { FName = "Mahmoud", LName = "Roshdy",  Email = "mahmoud.roshdy@student.test",  PhoneNumber = "01033333333", IsActive = false },
+            new Student { FName = "Salma",   LName = "Hany",    Email = "salma.hany@student.test",      PhoneNumber = "01133333333", IsActive = true  },
+            // Soft-deleted student for filter tests
+            new Student
+            {
+                FName = "Deleted", LName = "Student",
+                Email = "deleted@student.test",
+                PhoneNumber = "01233333333",
+                IsActive = false,
+                IsDeleted = true,
+                DeletedAt = DateTime.UtcNow.AddDays(-10)
+            }
+        };
+
+        // --------------------------------------------------------------------
+        // Enrollments
+        // Builds a variety of scenarios: draft, active, completed, cancelled.
+        // --------------------------------------------------------------------
+        private static List<Enrollment> SeedEnrollments(List<Student> students, List<TrainingTrack> tracks)
+        {
+            var youssef = students[0];
+            var nour = students[1];
+            var khaled = students[2];
+            var layla = students[3];
+            var hassan = students[4];
+            var dina = students[5];
+            var karim = students[6];
+            var aya = students[7];
+            var salma = students[9];
+
+            var api = tracks[0];
+            var efc = tracks[1];
+            var rts = tracks[2];
+            var azr = tracks[3];
+            var k8s = tracks[4];
+
+            return new List<Enrollment>
+            {
+                // Draft — no payments yet
+                new Enrollment { StudentId = youssef.Id, TrainingTrackId = api.Id,  Status = EnrollmentStatus.Draft, EnrollmentDate = DateTime.UtcNow.AddDays(-2) },
+                // Draft — partial payment (will be added)
+                new Enrollment { StudentId = nour.Id,    TrainingTrackId = api.Id,  Status = EnrollmentStatus.Draft, EnrollmentDate = DateTime.UtcNow.AddDays(-1) },
+                // Draft — partial payment
+                new Enrollment { StudentId = khaled.Id,  TrainingTrackId = rts.Id,  Status = EnrollmentStatus.Draft, EnrollmentDate = DateTime.UtcNow.AddDays(-3) },
+
+                // Active — fully paid (activated by seeder after payments)
+                new Enrollment { StudentId = layla.Id,   TrainingTrackId = api.Id,  Status = EnrollmentStatus.Active, EnrollmentDate = DateTime.UtcNow.AddDays(-20) },
+                new Enrollment { StudentId = hassan.Id,  TrainingTrackId = efc.Id,  Status = EnrollmentStatus.Active, EnrollmentDate = DateTime.UtcNow.AddDays(-15) },
+                new Enrollment { StudentId = dina.Id,    TrainingTrackId = rts.Id,  Status = EnrollmentStatus.Active, EnrollmentDate = DateTime.UtcNow.AddDays(-10) },
+                new Enrollment { StudentId = karim.Id,   TrainingTrackId = azr.Id,  Status = EnrollmentStatus.Active, EnrollmentDate = DateTime.UtcNow.AddDays(-8) },
+
+                // Completed — fully paid and finished
+                new Enrollment
+                {
+                    StudentId = aya.Id, TrainingTrackId = k8s.Id,
+                    Status = EnrollmentStatus.Completed, EnrollmentDate = DateTime.UtcNow.AddDays(-60),
+                    ProgressPercentage = 100m, FinalGrade = 88.5m
+                },
+                new Enrollment
+                {
+                    StudentId = salma.Id, TrainingTrackId = k8s.Id,
+                    Status = EnrollmentStatus.Completed, EnrollmentDate = DateTime.UtcNow.AddDays(-55),
+                    ProgressPercentage = 100m, FinalGrade = 92.0m
+                },
+
+                // Cancelled — refund will be added by seeder
+                new Enrollment { StudentId = youssef.Id, TrainingTrackId = efc.Id, Status = EnrollmentStatus.Cancelled, EnrollmentDate = DateTime.UtcNow.AddDays(-25) }
+            };
+        }
+
+        // --------------------------------------------------------------------
+        // Payments
+        // Aligns with the cumulative-payment model:
+        //   - All but the final payment for an enrollment: PartiallyPaid
+        //   - Final payment that completes the enrollment: Paid
+        //   - Refund row for the cancelled enrollment: Refunded
+        // --------------------------------------------------------------------
+        private static List<Payment> SeedPayments(List<Enrollment> enrollments, List<TrainingTrack> tracks)
+        {
+            var payments = new List<Payment>();
+            var rng = new Random(20240924); // deterministic for repeatable test data
+
+            for (int i = 0; i < enrollments.Count; i++)
+            {
+                var enrollment = enrollments[i];
+                var track = tracks.First(t => t.Id == enrollment.TrainingTrackId);
+
+                switch (enrollment.Status)
+                {
+                    case EnrollmentStatus.Draft:
+                        // Some drafts get a partial payment, one gets none.
+                        if (i == 1) // nour → 1000 of 3500
+                            payments.Add(BuildPayment(enrollment, 1000m, PaymentStatus.PartiallyPaid, rng, DateTime.UtcNow.AddDays(-1)));
+                        else if (i == 2) // khaled → 1500 of 3000
+                            payments.Add(BuildPayment(enrollment, 1500m, PaymentStatus.PartiallyPaid, rng, DateTime.UtcNow.AddDays(-2)));
+                        // i == 0 (youssef) → no payments
+                        break;
+
+                    case EnrollmentStatus.Active:
+                        // Fully paid. Split into 2 or 3 partials, final = Paid.
+                        if (track.Price == 3500m) // api
+                        {
+                            payments.Add(BuildPayment(enrollment, 1500m, PaymentStatus.PartiallyPaid, rng, DateTime.UtcNow.AddDays(-19)));
+                            payments.Add(BuildPayment(enrollment, 2000m, PaymentStatus.Paid, rng, DateTime.UtcNow.AddDays(-18)));
+                        }
+                        else if (track.Price == 2800m) // efc
+                        {
+                            payments.Add(BuildPayment(enrollment, 2800m, PaymentStatus.Paid, rng, DateTime.UtcNow.AddDays(-14)));
+                        }
+                        else if (track.Price == 3000m) // rts
+                        {
+                            payments.Add(BuildPayment(enrollment, 1000m, PaymentStatus.PartiallyPaid, rng, DateTime.UtcNow.AddDays(-9)));
+                            payments.Add(BuildPayment(enrollment, 1000m, PaymentStatus.PartiallyPaid, rng, DateTime.UtcNow.AddDays(-7)));
+                            payments.Add(BuildPayment(enrollment, 1000m, PaymentStatus.Paid, rng, DateTime.UtcNow.AddDays(-6)));
+                        }
+                        else if (track.Price == 4000m) // azr
+                        {
+                            payments.Add(BuildPayment(enrollment, 4000m, PaymentStatus.Paid, rng, DateTime.UtcNow.AddDays(-7)));
+                        }
+                        break;
+
+                    case EnrollmentStatus.Completed:
+                        payments.Add(BuildPayment(enrollment, track.Price, PaymentStatus.Paid, rng, enrollment.EnrollmentDate.AddDays(1)));
+                        break;
+
+                    case EnrollmentStatus.Cancelled:
+                        // Student had paid 2800 in full, then cancelled → refund row.
+                        payments.Add(BuildPayment(enrollment, 2800m, PaymentStatus.Paid, rng, DateTime.UtcNow.AddDays(-24)));
+                        payments.Add(BuildRefund(enrollment, 2800m, DateTime.UtcNow.AddDays(-20)));
+                        break;
+                }
+            }
+
+            return payments;
+        }
+
+        private static Payment BuildPayment(
+            Enrollment enrollment, decimal amount, PaymentStatus status, Random rng, DateTime date) => new()
+            {
+                EnrollmentId = enrollment.Id,
+                Amount = amount,
+                PaymentMethod = (PaymentMethod)rng.Next(0, 6),
+                PaymentDate = date,
+                PaymentStatus = status,
+                ReferenceNumber = $"SEED-{enrollment.Id}-{Guid.NewGuid():N}",
+                Notes = status == PaymentStatus.Paid
+                ? "Final payment — enrollment completed."
+                : "Installment payment."
+            };
+
+        private static Payment BuildRefund(Enrollment enrollment, decimal amount, DateTime date) => new()
+        {
+            EnrollmentId = enrollment.Id,
+            Amount = amount,
+            PaymentMethod = PaymentMethod.BankTransfer,
+            PaymentDate = date,
+            PaymentStatus = PaymentStatus.Refunded,
+            ReferenceNumber = $"SEED-{enrollment.Id}-{Guid.NewGuid():N}",
+            Notes = $"Refund for cancelled enrollment #{enrollment.Id}."
+        };
+
+        // --------------------------------------------------------------------
+        // Reconciliation — apply the same state transition the runtime applies:
+        // fully paid draft enrollments become Active.
+        // We only do this for enrollments that the seed marked as Draft AND
+        // have payments covering the price. The cancelled + refunded one is
+        // left as Cancelled.
+        // --------------------------------------------------------------------
+        private static async Task ActivateFullyPaidEnrollmentsAsync(ApplicationDbContext context)
+        {
+            var drafts = await context.Enrollments
+                .Include(e => e.TrainingTrack)
+                .Include(e => e.Payments)
+                .Where(e => e.Status == EnrollmentStatus.Draft)
+                .ToListAsync();
+
+            foreach (var e in drafts)
+            {
+                var paid = e.Payments
+                    .Where(p => p.PaymentStatus == PaymentStatus.Paid
+                             || p.PaymentStatus == PaymentStatus.PartiallyPaid)
+                    .Sum(p => p.Amount);
+
+                if (paid >= (e.TrainingTrack?.Price ?? 0))
+                    e.Status = EnrollmentStatus.Active;
             }
         }
     }

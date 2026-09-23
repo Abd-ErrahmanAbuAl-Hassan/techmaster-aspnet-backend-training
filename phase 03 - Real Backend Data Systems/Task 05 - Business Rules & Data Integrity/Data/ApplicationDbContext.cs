@@ -27,8 +27,8 @@ namespace Task_05_Business_Rules_Data_Integrity.Data
                 entity.HasIndex(s => s.PhoneNumber).IsUnique();
 
                 entity.Property(s => s.PhoneNumber).HasMaxLength(11).IsRequired();
-                entity.Property(s => s.FName).HasColumnTitle("First Name").HasMaxLength(20).IsRequired();
-                entity.Property(s => s.LName).HasColumnTitle("Last Name").HasMaxLength(20).IsRequired();
+                entity.Property(s => s.FName).HasColumnName("First Name").HasMaxLength(20).IsRequired();
+                entity.Property(s => s.LName).HasColumnName("Last Name").HasMaxLength(20).IsRequired();
                 entity.Property(s => s.Email).HasMaxLength(50).IsRequired();
 
                 entity.HasMany(s => s.Enrollments)
@@ -45,8 +45,8 @@ namespace Task_05_Business_Rules_Data_Integrity.Data
                 entity.HasIndex(s => s.PhoneNumber).IsUnique();
 
                 entity.Property(s => s.PhoneNumber).HasMaxLength(11).IsRequired();
-                entity.Property(s => s.FName).HasColumnTitle("First Name").HasMaxLength(20).IsRequired();
-                entity.Property(s => s.LName).HasColumnTitle("Last Name").HasMaxLength(20).IsRequired();
+                entity.Property(s => s.FName).HasColumnName("First Name").HasMaxLength(20).IsRequired();
+                entity.Property(s => s.LName).HasColumnName("Last Name").HasMaxLength(20).IsRequired();
                 entity.Property(s => s.Email).HasMaxLength(50).IsRequired();
                 entity.Property(s => s.Bio).HasMaxLength(250).IsRequired(false);
                 entity.Property(s => s.Specialization).HasMaxLength(50).IsRequired(false);

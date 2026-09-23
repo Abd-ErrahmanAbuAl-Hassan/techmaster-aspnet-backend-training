@@ -10,5 +10,6 @@ namespace Task_05_Business_Rules_Data_Integrity.DTOs.Responses
         public DateTime PaymentDate { get; set; }
         public PaymentStatus PaymentStatus { get; set; }
         public string ReferenceNumber { get; set; } = string.Empty;
+        public string Notes { get; set; } = string.Empty;
     }
 }

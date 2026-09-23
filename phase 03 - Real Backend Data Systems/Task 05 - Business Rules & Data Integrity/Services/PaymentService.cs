@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System.Security.Cryptography;
 using Task_05_Business_Rules_Data_Integrity.Data;
 using Task_05_Business_Rules_Data_Integrity.DTOs.Requests;
 using Task_05_Business_Rules_Data_Integrity.DTOs.Responses;
@@ -20,10 +19,30 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
             _enrollmentService = enrollmentService;
         }
 
-        public async Task<ApiResponse<PagedResult<PaymentResponse>>> GetPaymentsAsync(int pageNumber = 1, int pageSize = 10, DateTime? startDate = null, DateTime? endDate = null, PaymentStatus? status = null)
+        public async Task<ApiResponse<PagedResult<PaymentResponse>>> GetPaymentsAsync(int pageNumber = 1, int pageSize = 10, 
+                                                                                      DateTime? startDate = null, DateTime? endDate = null,
+                                                                                      PaymentStatus? status = null)
         {
             try
             {
+
+                var errors = new List<string>();
+                if (pageNumber < 1) errors.Add("Page number must be positive number.");
+                if (pageSize < 1) errors.Add("Page size must be positive number.");
+                if (pageSize > 50) errors.Add("Page size must be at most 50.");
+                if(startDate.HasValue != endDate.HasValue) errors.Add("Both start and end dates must be provided together.");
+                if(startDate.HasValue && endDate.HasValue && startDate.Value > endDate.Value) errors.Add("Start date must be less than or equal End date.");
+                if (status.HasValue && !Enum.IsDefined(typeof(PaymentStatus), status.Value)) errors.Add("Payment status is invalid.");
+
+                if (errors.Any())
+                    return new ApiResponse<PagedResult<PaymentResponse>>
+                    {
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = errors
+                    };
+
                 var query = _context.Payments.AsQueryable();
 
                 if (startDate.HasValue)
@@ -82,21 +101,21 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<PaymentResponse>> CreatePaymentAsync(CreatePaymentRequest request)
         {
+            await using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             try
             {
                 var errors = new List<string>();
-
-                if (request.Amount <= 0)
-                    errors.Add("Amount must be greater than zero.");
+                if (request.EnrollmentId < 1) errors.Add("Enrollment ID must be positive number.");
+                if (request.Amount <= 0) errors.Add("Amount must be greater than zero.");
+                if(!Enum.IsDefined(request.PaymentMethod)) errors.Add("Payment method not valid.");
 
                 var enrollment = await _context.Enrollments
-                    .Include(e => e.TrainingTrack)
-                    .FirstOrDefaultAsync(e => e.Id == request.EnrollmentId);
+                                .Include(e => e.TrainingTrack)
+                                .FirstOrDefaultAsync(e => e.Id == request.EnrollmentId);
 
-                if (enrollment == null)
+                if (!(request.EnrollmentId < 1) && enrollment == null)
                     errors.Add("Enrollment not found.");
 
                 if (errors.Any())
@@ -107,10 +126,25 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         ErrorCode = 400,
                         Errors = errors
                     };
+                
+                if (enrollment.Status == EnrollmentStatus.Cancelled)
+                    return new ApiResponse<PaymentResponse>
+                    {
+                        Success = false,
+                        Message = "Validation errors.",
+                        ErrorCode = 400,
+                        Errors = new List<string> { "Cannot create a payment for a cancelled enrollment." }
+                    };
 
-                var prevPayments = _context.Payments.Where(p => p.EnrollmentId == request.EnrollmentId).AsQueryable();
+                var totalPaid = await _context.Payments
+                        .Where(p => p.EnrollmentId == request.EnrollmentId && 
+                              (p.PaymentStatus == PaymentStatus.PartiallyPaid || 
+                               p.PaymentStatus == PaymentStatus.Paid))
+                        .SumAsync(p => p.Amount);
 
-                if (prevPayments.Any(p => p.PaymentStatus == PaymentStatus.Paid))
+                decimal totalAmount = totalPaid + request.Amount;
+
+                if (totalPaid >= enrollment.TrainingTrack!.Price)
                     return new ApiResponse<PaymentResponse>
                     {
                         Success = false,
@@ -119,16 +153,9 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         Errors = new List<string> { "The enrollment is already paid." }
                     };
 
-                decimal totalPaid = 0;
                 PaymentStatus status = PaymentStatus.Pending;
-                if (prevPayments.Any(p => p.PaymentStatus == PaymentStatus.PartiallyPaid))
-                {
-                    totalPaid = await prevPayments
-                        .Where(p => p.PaymentStatus == PaymentStatus.PartiallyPaid)
-                        .SumAsync(p => p.Amount);
-                }
-
-                if (totalPaid + request.Amount > enrollment!.TrainingTrack!.Price)
+                
+                if (totalAmount > enrollment!.TrainingTrack!.Price)
                     return new ApiResponse<PaymentResponse>
                     {
                         Success = false,
@@ -136,9 +163,9 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         ErrorCode = 400,
                         Errors = new List<string> { "Payment amount exceeds track price." }
                     };
-                else if (totalPaid + request.Amount < enrollment!.TrainingTrack!.Price)
+                else if (totalAmount < enrollment!.TrainingTrack!.Price)
                     status = PaymentStatus.PartiallyPaid;
-                else
+                else 
                     status = PaymentStatus.Paid;
 
                 var payment = new Payment
@@ -148,34 +175,19 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                     PaymentMethod = request.PaymentMethod,
                     PaymentDate = DateTime.UtcNow,
                     PaymentStatus = status,
-                    ReferenceNumber = $"REF-{request.EnrollmentId}-{RandomNumberGenerator.GetInt32(0, 1000):D3}",
+                    ReferenceNumber = $"REF-{enrollment.Id}-{Guid.NewGuid():N}"[..20],
                     Notes = request.Notes
                 };
 
                 _context.Payments.Add(payment);
 
-                if (payment.PaymentStatus == PaymentStatus.Paid)
+                if (totalAmount >= enrollment.TrainingTrack!.Price)
                 {
-                    await _enrollmentService.UpdateEnrollmentStatusAsync(enrollment.Id, EnrollmentStatus.Active);
-                    await _context.SaveChangesAsync();
-                }
-                else
-                {
-
-                    var result = await UpdatePaymentStatusAsync(payment.Id, PaymentStatus.Failed);
-                    if (!result.Success) 
-                        return result;
-
-                    return new ApiResponse<PaymentResponse>
-                    {
-                        Success = false,
-                        Message = "Payment Failed.",
-                        ErrorCode = 500,
-                        Errors = new List<string> {"Payment Service not available, Try again later."}
-                    };
-
+                    enrollment.Status = EnrollmentStatus.Active;
                 }
 
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
 
                 return new ApiResponse<PaymentResponse>
                 {
@@ -194,6 +206,7 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
                 return new ApiResponse<PaymentResponse>
                 {
                     Success = false,
@@ -203,11 +216,26 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<PagedResult<PaymentResponse>>> GetEnrollmentPaymentsAsync(int enrollmentId, int pageNumber = 1, int pageSize = 10)
         {
             try
             {
+
+                var errors = new List<string>();
+                if (enrollmentId < 1) errors.Add("Enrollment ID must be positive number.");
+                if (pageNumber < 1) errors.Add("Page number must be positive number.");
+                if (pageSize < 1) errors.Add("Page size must be positive number.");
+                if (pageSize > 50) errors.Add("Page size must be at most 50.");
+
+                if (errors.Any())
+                    return new ApiResponse<PagedResult<PaymentResponse>>
+                    {
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = errors
+                    };
+
                 var enrollment = await _context.Enrollments.FirstOrDefaultAsync(e => e.Id == enrollmentId);
                 if (enrollment == null)
                     return new ApiResponse<PagedResult<PaymentResponse>>
@@ -230,7 +258,8 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         PaymentMethod = p.PaymentMethod,
                         PaymentDate = p.PaymentDate,
                         PaymentStatus = p.PaymentStatus,
-                        ReferenceNumber = p.ReferenceNumber
+                        ReferenceNumber = p.ReferenceNumber,
+                        Notes = p.Notes,
                     })
                     .ToListAsync();
 
@@ -267,11 +296,24 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         public async Task<ApiResponse<PaymentResponse>> UpdatePaymentStatusAsync(int id, PaymentStatus status)
         {
             try
             {
+
+                var errors = new List<string>();
+                if (id < 1) errors.Add("Payment ID must be positive number.");
+                if(!Enum.IsDefined(status)) errors.Add("Payment status is invalid.");
+
+                if (errors.Any())
+                    return new ApiResponse<PaymentResponse>
+                    {
+                        Success = false,
+                        Message = "Validation Errors.",
+                        ErrorCode = 400,
+                        Errors = errors
+                    };
+
                 var payment = await _context.Payments.FirstOrDefaultAsync(p => p.Id == id);
                 if (payment == null)
                     return new ApiResponse<PaymentResponse>
@@ -305,7 +347,8 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                         PaymentMethod = payment.PaymentMethod,
                         PaymentDate = payment.PaymentDate,
                         PaymentStatus = payment.PaymentStatus,
-                        ReferenceNumber = payment.ReferenceNumber
+                        ReferenceNumber = payment.ReferenceNumber,
+                        Notes = payment.Notes,
                     }
                 };
             }
@@ -320,7 +363,6 @@ namespace Task_05_Business_Rules_Data_Integrity.Services
                 };
             }
         }
-
         private bool IsValidStatusTransition(PaymentStatus currentStatus, PaymentStatus newStatus)
         {
             return (currentStatus, newStatus) switch

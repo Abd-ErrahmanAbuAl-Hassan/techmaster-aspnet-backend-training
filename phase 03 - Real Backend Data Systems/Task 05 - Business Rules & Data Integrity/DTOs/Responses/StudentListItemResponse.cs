@@ -21,6 +21,6 @@ namespace Task_05_Business_Rules_Data_Integrity.DTOs.Responses
         public int Id { get; set; }
         public string FullName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
-        public List<PaymentResponse> Payments { get; set; } = new();
+        //public List<PaymentResponse> Payments { get; set; } = new();
     }
 }
