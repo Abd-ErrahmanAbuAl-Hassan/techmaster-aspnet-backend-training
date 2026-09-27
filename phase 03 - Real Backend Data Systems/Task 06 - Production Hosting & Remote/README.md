@@ -361,43 +361,43 @@ The seeder is **idempotent** — it checks `if (await context.Instructors.AnyAsy
 > All evidence stored in the project's shared drive folder. Screenshots referenced below.
 
 ### 1. Database Name
-![Database name](https://drive.google.com/file/d/1EW9iWk_E1DAV39LOiyp_o6Q3vqbtbDP5/view?usp=drive_link)
+**[Database name](https://drive.google.com/file/d/1EW9iWk_E1DAV39LOiyp_o6Q3vqbtbDP5/view?usp=drive_link)
 *Azure Portal → SQL Database → Overview showing `TechMasterTrainingCenterDb`.*
 
 ### 2. Connection Settings (Password Hidden)
-![Connection settings](docs/evidence/02-connection-settings.png)
+**[Connection settings](docs/evidence/02-connection-settings.png)
 *App Service → Configuration → Connection Strings. The password field is masked by Azure.*
 
 ### 3. Remote Tables
-![Remote tables](https://drive.google.com/file/d/1Yk53uy3KDJkWC5xyZLzUDglEvi5fxQsj/view?usp=drive_link)
+**[Remote tables](https://drive.google.com/file/d/1Yk53uy3KDJkWC5xyZLzUDglEvi5fxQsj/view?usp=drive_link)
 *Azure SQL Query Editor showing `Students`, `Instructors`, `TrainingTracks`, `Enrollments`, `Payments`, `__EFMigrationsHistory`.*
 
 ### 4. Migration History
-![Migration history](https://drive.google.com/file/d/1yo18dGcFiXckg4ksXjaxm16QPCaGRqlM/view?usp=drive_link)
+**[Migration history](https://drive.google.com/file/d/1yo18dGcFiXckg4ksXjaxm16QPCaGRqlM/view?usp=drive_link)
 *`SELECT * FROM __EFMigrationsHistory` — confirms `InitialCreate` was applied.*
 
 ### 5. Seed Data
-![Seed data](https://drive.google.com/file/d/1LjtAs-_MMEY7EDweX_q8h0XX-NlJd2eU/view?usp=drive_link)
+**[Seed data](https://drive.google.com/file/d/1LjtAs-_MMEY7EDweX_q8h0XX-NlJd2eU/view?usp=drive_link)
 *`SELECT COUNT(*) FROM Instructors` (and other tables) showing seeded rows.*
 
 ### 6. Live Swagger UI
-![Swagger](https://techmasterapi.azurewebsites.net/swagger/index.html)
+**[Swagger](https://techmasterapi.azurewebsites.net/swagger/index.html)
 *https://techmasterapi.azurewebsites.net/swagger — all controllers listed.*
 
 ### 7. GET Endpoint Online
-![GET online](https://drive.google.com/file/d/1QHbmCXa0NhyH8Tnn_vctONl3R-3iNogC/view?usp=drive_link)
+**[GET online](https://drive.google.com/file/d/1QHbmCXa0NhyH8Tnn_vctONl3R-3iNogC/view?usp=drive_link)
 *`GET /api/instructors` via Swagger — returns 200 with seeded instructors.*
 
 ### 8. POST Endpoint Online
-![POST online](https://drive.google.com/file/d/11mYf5dT54QPx0-Gpz175Rjr-hA7Dh-hq/view?usp=drive_link)
+**[POST online](https://drive.google.com/file/d/11mYf5dT54QPx0-Gpz175Rjr-hA7Dh-hq/view?usp=drive_link)
 *`POST /api/students` via Swagger — returns 201 Created.*
 
 ### 9. Postman Request
-![Postman](https://drive.google.com/drive/folders/1aQ_JFfQk6Si3uYOcdAJ-lPmFR57IYpni?usp=drive_link)
+**[Postman](https://drive.google.com/drive/folders/1aQ_JFfQk6Si3uYOcdAJ-lPmFR57IYpni?usp=drive_link)
 *Postman hitting the live URL with a real request/response.*
 
 ### 10. Drive Deployment Evidence
-![Drive](https://drive.google.com/drive/folders/1wGYd3fzJef-AGyS9imZ0jFJq8tqIRMFk?usp=drive_link)
+**[Drive](https://drive.google.com/drive/folders/1wGYd3fzJef-AGyS9imZ0jFJq8tqIRMFk?usp=drive_link)
 *Shared drive folder containing all screenshots and the demo video.*
 
 ---
@@ -429,7 +429,7 @@ The video covers:
 **Abdulrahaman Mohamed**
 Backend .NET Developer — TechMaster Academy Training Program
 
-- GitHub: [@<your-username>](https://github.com/Abd-ErrahmanAbuAl-Hassan/)
-- LinkedIn: [<your-profile>](www.linkedin.com/in/abdulrahman-abu-al-hassan)
+- GitHub: [Abd-ErrahmanAbuAl-Hassan](https://github.com/Abd-ErrahmanAbuAl-Hassan/)
+- LinkedIn: [abdulrahman-abu-al-hassan](www.linkedin.com/in/abdulrahman-abu-al-hassan)
 
 ---
