@@ -382,7 +382,7 @@ The seeder is **idempotent** — it checks `if (await context.Instructors.AnyAsy
 
 ### 6. Live Swagger UI
 **[Swagger](https://techmasterapi.azurewebsites.net/swagger/index.html)
-*https://techmasterapi.azurewebsites.net/swagger — all controllers listed.*
+ — all controllers listed.*
 
 ### 7. GET Endpoint Online
 **[GET online](https://drive.google.com/file/d/1QHbmCXa0NhyH8Tnn_vctONl3R-3iNogC/view?usp=drive_link)
@@ -430,6 +430,6 @@ The video covers:
 Backend .NET Developer — TechMaster Academy Training Program
 
 - GitHub: [Abd-ErrahmanAbuAl-Hassan](https://github.com/Abd-ErrahmanAbuAl-Hassan/)
-- LinkedIn: [abdulrahman-abu-al-hassan](www.linkedin.com/in/abdulrahman-abu-al-hassan)
+- LinkedIn: [abdulrahman-abu-al-hassan](https://www.linkedin.com/in/abdulrahman-abu-al-hassan)
 
 ---
