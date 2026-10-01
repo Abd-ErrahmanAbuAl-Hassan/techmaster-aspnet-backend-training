@@ -1,0 +1,6 @@
+@Task_06___API_Standards___Refactor_Pack_HostAddress = http://localhost:5277
+
+GET {{Task_06___API_Standards___Refactor_Pack_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
