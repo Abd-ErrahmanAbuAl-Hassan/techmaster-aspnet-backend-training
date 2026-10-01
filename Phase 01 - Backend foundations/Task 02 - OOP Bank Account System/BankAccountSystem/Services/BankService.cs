@@ -16,6 +16,14 @@ namespace Task_02_OOP_Bank_Account_System.BankAccountSystem.Services
         {
             var customer = new Customer(fullName, email, phoneNumber);
             var account = new BankAccount(customer, initialBalance, accountType);
+            do
+            {
+                account = new BankAccount(
+                    customer,
+                    initialBalance,
+                    accountType);
+            }
+            while (_accounts.Any(x =>x.AccountNumber == account.AccountNumber));
             _accounts.Add(account);
 
             return account;
@@ -74,6 +82,9 @@ namespace Task_02_OOP_Bank_Account_System.BankAccountSystem.Services
                 throw new InvalidOperationException(
                     $"Insufficient balance. Current balance: {sourceAccount.Balance:C}, Requested transfer: {amount:C}");
 
+            var sourceSnapshot = sourceAccount.CreateSnapshot();
+            var destinationSnapshot = destinationAccount.CreateSnapshot();
+
             try
             {
                 sourceAccount.RecordTransferOut(amount, destinationAccountNumber);
@@ -81,6 +92,8 @@ namespace Task_02_OOP_Bank_Account_System.BankAccountSystem.Services
             }
             catch
             {
+                sourceAccount.Restore(sourceSnapshot);
+                destinationAccount.Restore(destinationSnapshot);
                 throw;
             }
         }

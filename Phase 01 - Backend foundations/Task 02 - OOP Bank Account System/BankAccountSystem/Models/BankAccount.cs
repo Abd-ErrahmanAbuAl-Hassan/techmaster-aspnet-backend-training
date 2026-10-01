@@ -2,17 +2,32 @@ namespace Task_02_OOP_Bank_Account_System.BankAccountSystem.Models
 {
     public class BankAccount
     {
-        public string AccountNumber { get; }
+        public string AccountNumber { get; private set; }
         public Customer Customer { get; }
         public AccountType AccountType { get; }
         public DateTime CreatedAt { get; }
         public bool IsActive { get; private set; }
 
         private decimal _balance;
-        public decimal Balance => _balance;
-
-
         private readonly List<Transaction> _transactions;
+
+        public record AccountSnapshot(decimal Balance,List<Transaction> Transactions);
+        public decimal Balance => _balance;
+        public AccountSnapshot CreateSnapshot()
+        {
+            return new AccountSnapshot(
+                _balance,
+                _transactions.ToList()
+            );
+        }
+        public void Restore(AccountSnapshot snapshot)
+        {
+            _balance = snapshot.Balance;
+
+            _transactions.Clear();
+            _transactions.AddRange(snapshot.Transactions);
+        }
+
         public IReadOnlyList<Transaction> Transactions => _transactions.AsReadOnly();
 
         public BankAccount(Customer customer, decimal initialBalance, AccountType accountType)
@@ -139,9 +154,8 @@ namespace Task_02_OOP_Bank_Account_System.BankAccountSystem.Models
         // Generates a unique account number in format ACC-XXX.
         private static string GenerateAccountNumber()
         {
-            var random = new Random();
-            var randomPart = random.Next(100, 999);
-            return $"ACC-{randomPart}";
+            var randomPart = Random.Shared.Next(100, 9999);
+            return $"ACC-{randomPart:N3}";
         }
     }
 }
