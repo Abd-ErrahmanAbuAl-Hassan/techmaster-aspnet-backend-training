@@ -9,13 +9,13 @@ namespace Task_02___Student_Management_API.Controllers
     [ApiController]
     public class StudentsController : ControllerBase
     {
-        private readonly StudentService _studentService;
-        public StudentsController(StudentService studentService)
+        private readonly IStudentService _studentService;
+        public StudentsController(IStudentService studentService)
         {
             _studentService = studentService;
         }
 
-        [HttpPost("create")]
+        [HttpPost]
         public IActionResult CreateStudent(CreateStudentRequest model)
         {
             if (model is null) return BadRequest(new
@@ -30,10 +30,10 @@ namespace Task_02___Student_Management_API.Controllers
             if (!result.Success && result.ErrorCode == 400) return BadRequest(result);
             if (!result.Success && result.ErrorCode == 404) return NotFound(result);
 
-            return Created($"/api/students/{result.Data.Id}", result);
+            return Created($"/api/students/{result.Data!.Id}", result);
         }
 
-        [HttpGet("all")]
+        [HttpGet]
         public IActionResult GetAllStudent([FromQuery] Filter? filter)
         {
             var result = _studentService.GetAll(filter);
@@ -64,6 +64,16 @@ namespace Task_02___Student_Management_API.Controllers
 
             return Ok(result);
         }
+        [HttpGet("by-track/{trackName}")]
+        public IActionResult GetStudentById(string trackName)
+        {
+            var result = _studentService.GetByTrackName(trackName);
+
+            if (!result.Success && result.ErrorCode == 400) return BadRequest(result);
+            if (!result.Success && result.ErrorCode == 404) return NotFound(result);
+
+            return Ok(result);
+        }
 
         [HttpPut("{id}")]
         public IActionResult UpdateStudent(Guid id, UpdateStudentRequest model)
@@ -86,7 +96,7 @@ namespace Task_02___Student_Management_API.Controllers
 
             return Ok(result);
         }
-        [HttpDelete("{id}/delete")]
+        [HttpDelete("{id}")]
         public IActionResult DeleteStudent(Guid id)
         {
             var result = _studentService.Delete(id);

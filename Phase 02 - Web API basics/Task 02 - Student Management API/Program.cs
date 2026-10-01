@@ -13,7 +13,7 @@ namespace Task_02___Student_Management_API
             builder.Services.AddControllers();
             builder.Services.AddSwaggerGen();
 
-            builder.Services.AddSingleton<StudentService>();
+            builder.Services.AddSingleton<IStudentService,StudentService>();
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.

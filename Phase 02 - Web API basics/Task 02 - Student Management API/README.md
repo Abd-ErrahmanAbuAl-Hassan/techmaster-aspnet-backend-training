@@ -51,6 +51,7 @@ task-02-student-management-api/
 │   │   └── StudentStatsResponse.cs
 │   ├── Services/
 │   │   └── StudentService.cs
+│   │   └── IStudentService.cs
 │   ├── Utilities/
 │   │   ├── Result.cs
 │   │   └── Filter.cs
@@ -106,13 +107,14 @@ task-02-student-management-api/
 
 | Method | Endpoint                    | Description                                              |
 |--------|--------------------------------|--------------------------------------------------------------|
-| POST   | `/api/students/create`         | Create a new student                                           |
-| GET    | `/api/students/all`            | Get all students (search, filter, paginate — see below)         |
+| POST   | `/api/students/`         | Create a new student                                           |
+| GET    | `/api/students/`            | Get all students (search, filter, paginate — see below)         |
 | GET    | `/api/students/stats`          | Get student statistics                                            |
 | GET    | `/api/students/{id}`           | Get a student by ID                                                |
+| GET    | `/api/students/by-track/{trackName}`           | Get a students by track                                               |
 | PUT    | `/api/students/{id}`           | Update a student's details                                          |
 | PATCH  | `/api/students/{id}/status`    | Update a student's active/inactive status                            |
-| DELETE | `/api/students/{id}/delete`    | Delete a student by ID                                                 |
+| DELETE | `/api/students/{id}`    | Delete a student by ID                                                 |
 
 #### `GET /api/students/all` Query Parameters
 

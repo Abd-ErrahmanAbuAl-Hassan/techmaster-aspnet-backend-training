@@ -5,7 +5,7 @@ using Task_02___Student_Management_API.Utilities;
 
 namespace Task_02___Student_Management_API.Services
 {
-    public class StudentService
+    public class StudentService : IStudentService
     {
         private static List<Student> _students = new List<Student>();
 
@@ -345,6 +345,33 @@ namespace Task_02___Student_Management_API.Services
             {
                 Success = true,
                 Message = "Successfully Deleted",
+            };
+        }
+
+        public Result<Student> GetByTrackName(string trackName)
+        {
+            if (!_students.Any())
+                return new Result<Student>
+                {
+                    Success = false,
+                    Message = "No Students Exists, create the first one.",
+                    ErrorCode = 404
+                };
+
+            var student = _students.FirstOrDefault(s => s.TrackName.Contains(trackName,StringComparison.OrdinalIgnoreCase));
+
+            if (student is null) return new Result<Student>
+            {
+                Success = false,
+                Message = "No Students found.",
+                ErrorCode = 404
+            };
+
+            return new Result<Student>
+            {
+                Success = true,
+                Message = "Successfully retrieval",
+                Data = student
             };
         }
     }
