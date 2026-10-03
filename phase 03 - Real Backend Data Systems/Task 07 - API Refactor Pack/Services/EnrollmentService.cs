@@ -1,10 +1,8 @@
 ﻿using Task_07___API_Refactor_Pack.Entities;
 using Task_07___API_Refactor_Pack.Data;
 using Task_07___API_Refactor_Pack.DTOs;
-using Task_07___API_Refactor_Pack.Entities;
 using Task_07___API_Refactor_Pack.Utilities;
 using Task_07___API_Refactor_Pack.Utilities.Enums;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 using Microsoft.EntityFrameworkCore;
 
 namespace Task_07___API_Refactor_Pack.Services
@@ -285,7 +283,6 @@ namespace Task_07___API_Refactor_Pack.Services
 
                 var totalCount = await query.CountAsync();
                 var enrollments = await query
-                    .OrderByDescending(e => e.EnrollmentDate)
                     .Skip((pageNumber - 1) * pageSize)
                     .Take(pageSize)
                     .ToListAsync();
