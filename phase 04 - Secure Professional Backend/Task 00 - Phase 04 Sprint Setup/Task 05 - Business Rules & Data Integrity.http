@@ -1,0 +1,6 @@
+@Task_05_Business_Rules_Data_Integrity_HostAddress = http://localhost:5118
+
+GET {{Task_05_Business_Rules_Data_Integrity_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
