@@ -1,0 +1,141 @@
+﻿using Microsoft.EntityFrameworkCore;
+using System.Linq;
+using System.Linq.Expressions;
+using TrainingCenter.Domain.Interfaces.Repositories;
+using TrainingCenter.Infrastructure.Data;
+
+namespace TrainingCenter.Infrastructure.Repositories
+{
+    public class GenericRepository<T> : IGenericRepository<T> where T : class
+    {
+        private readonly ApplicationDbContext _context;
+        private readonly DbSet<T> _dbSet;
+
+        public GenericRepository(ApplicationDbContext context)
+        {
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _dbSet = _context.Set<T>();
+        }
+
+        public async Task AddAsync(T entity)
+        {
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+            await _dbSet.AddAsync(entity);
+        }
+
+        public async Task AddRangeAsync(IEnumerable<T> entities)
+        {
+            if (entities == null) throw new ArgumentNullException(nameof(entities));
+            await _dbSet.AddRangeAsync(entities);
+        }
+
+        public async Task<bool> ExistsAsync( Expression<Func<T, bool>>? predicate = null,bool ignoreQueryFilters = false)
+        {
+
+            IQueryable<T> query = _dbSet;
+
+            if (ignoreQueryFilters)
+                query = query.IgnoreQueryFilters();
+
+            return predicate == null
+                ? await query.AnyAsync()
+                : await query.AnyAsync(predicate);
+        }
+
+        public async Task<IEnumerable<TResult>> GetAsync<TResult>(Expression<Func<T, bool>>? predicate = null,
+                                                                  Expression<Func<T, TResult>>? selector = null,
+                                                                  string? includes = null,
+                                                                  bool ignoreQueryFilters = false)
+        {
+            IQueryable<T> query = _dbSet;
+
+            if (ignoreQueryFilters)
+                query = query.IgnoreQueryFilters();
+
+            if (predicate != null)
+                query = query.Where(predicate);
+
+            if (!string.IsNullOrEmpty(includes))
+            {
+                foreach (var include in includes.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                    query = query.Include(include.Trim());
+            }
+
+            if (selector != null)
+                return await query.Select(selector).ToListAsync();
+
+            return await query.Cast<TResult>().ToListAsync();
+        }
+
+        public async Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>>? predicate = null,
+                                                      string? includes = null,
+                                                      bool ignoreQueryFilters = false)
+        {
+            IQueryable<T> query = _dbSet;
+
+            if (ignoreQueryFilters)
+                query = query.IgnoreQueryFilters();
+
+            if (predicate != null)
+                query = query.Where(predicate);
+
+            if (!string.IsNullOrEmpty(includes))
+            {
+                foreach (var include in includes.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                    query = query.Include(include.Trim());
+            }
+
+            return await query.ToListAsync();
+        }
+
+        public async Task<T?> GetFirstOrDefaultAsync(Expression<Func<T, bool>>? predicate = null,
+                                                     string? includes = null,
+                                                     bool ignoreQueryFilters = false)
+        {
+            IQueryable<T> query = _dbSet;
+
+            if (ignoreQueryFilters)
+                query = query.IgnoreQueryFilters();
+
+            if (predicate != null)
+                query = query.Where(predicate);
+
+            if (!string.IsNullOrEmpty(includes))
+            {
+                foreach (var include in includes.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                    query = query.Include(include.Trim());
+            }
+
+            return await query.FirstOrDefaultAsync();
+        }
+
+        public void Remove(T entity)
+        {
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+            _dbSet.Remove(entity);
+        }
+
+        public void RemoveRange(IEnumerable<T> entities)
+        {
+            if (entities == null || !entities.Any())
+                return;
+
+            _dbSet.RemoveRange(entities);
+        }
+
+        public void Update(T entity)
+        {
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+            _dbSet.Update(entity);
+        }
+
+        public async Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null, bool ignoreQueryFilters = false)
+        {
+            IQueryable<T> query = _dbSet;
+
+            if (ignoreQueryFilters)
+                query = query.IgnoreQueryFilters();
+            return predicate == null ? await query.CountAsync() : await query.CountAsync(predicate);
+        }
+    }
+}
