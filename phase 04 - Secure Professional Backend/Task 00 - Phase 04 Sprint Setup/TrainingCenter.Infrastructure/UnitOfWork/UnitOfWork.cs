@@ -17,6 +17,7 @@ namespace TrainingCenter.Infrastructure.UnitOfWork
         private IPaymentRepository _payments;
         private ITrackRepository _tracks;
         private IEnrollmentRepository _enrollments;
+        private IRefreshTokenRepository _refreshTokens;
 
         public UnitOfWork(ApplicationDbContext context)
         {
@@ -106,7 +107,18 @@ namespace TrainingCenter.Infrastructure.UnitOfWork
                 return _enrollments;
             }
         }
+        public IRefreshTokenRepository RefreshTokens
+        {
+            get
+            {
+                if (_refreshTokens is null)
+                {
+                    _refreshTokens = new RefreshTokenRepository(_context);
+    }
 
+                return _refreshTokens;
+            }
+        }
         public void Dispose()
         {
             _context.Dispose();

@@ -1,11 +1,17 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TrainingCenter.Application.Helpers.Models;
 using TrainingCenter.Application.Interfaces.Persistence;
+using TrainingCenter.Application.Interfaces.Security;
 using TrainingCenter.Application.Services.Implementations;
 using TrainingCenter.Application.Services.Interfaces;
 using TrainingCenter.Infrastructure.Data;
+using TrainingCenter.Infrastructure.Security;
 using TrainingCenter.Infrastructure.UnitOfWork;
 
 namespace TrainingCenter.API
@@ -39,6 +45,38 @@ namespace TrainingCenter.API
             builder.Services.AddScoped<ITrainingTrackService, TrainingTrackService>();
             builder.Services.AddScoped<IPaymentService, PaymentService>();
             builder.Services.AddScoped<IReportService, ReportService>();
+            builder.Services.AddScoped<IAuthService, AuthService>();
+
+            // ---------- Helper Services ----------
+            builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
+            builder.Services.AddScoped<ITokenGenerator, JwtToken>();
+
+
+            // ---------- Configurations ----------
+            var jwtSettings = builder.Configuration.GetSection("Jwt");
+            builder.Services.Configure<Jwt>(jwtSettings);
+
+            // ---------- Authentication  ----------
+            var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
+            builder.Services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ValidateIssuer = true,
+                    ValidIssuer = jwtSettings["Issuer"],
+                    ValidateAudience = true,
+                    ValidAudience = jwtSettings["Audience"],
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.Zero
+                };
+            });
 
             // ---------- Controllers ----------
             builder.Services.AddControllers()
@@ -115,7 +153,8 @@ namespace TrainingCenter.API
             }
 
             app.UseHttpsRedirection();
-
+            app.UseAuthentication();
+            app.UseAuthorization();
             app.MapControllers();
 
             // ---------- Health Check Endpoint ----------
