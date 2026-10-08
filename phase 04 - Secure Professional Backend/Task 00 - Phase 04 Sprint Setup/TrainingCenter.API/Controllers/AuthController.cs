@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using TrainingCenter.Application.DTOs.Auth.Requests;
 using TrainingCenter.Application.Services.Interfaces;
+using TrainingCenter.Controllers;
 using TrainingCenter.Domain.Enums;
 
 namespace TrainingCenter.API.Controllers
@@ -27,14 +28,7 @@ namespace TrainingCenter.API.Controllers
 
             var result = await _authService.LoginAsync(request);
             if (!result.Success)
-                return result.StatusCode switch
-                {
-                    400 => BadRequest(result),
-                    404 => NotFound(result),
-                    401 => Unauthorized(result),
-                    409 => Conflict(result),
-                    _ => StatusCode(StatusCodes.Status500InternalServerError, result)
-                };
+                return this.FailureResponse(result.StatusCode, result);
 
             return Ok(result);
 
@@ -57,14 +51,7 @@ namespace TrainingCenter.API.Controllers
 
             var result = await _authService.RegisterAsync(request, request.Role);
             if (!result.Success)
-                return result.StatusCode switch
-                {
-                    400 => BadRequest(result),
-                    404 => NotFound(result),
-                    401 => Unauthorized(result),
-                    409 => Conflict(result),
-                    _ => StatusCode(StatusCodes.Status500InternalServerError, result)
-                };
+                return this.FailureResponse(result.StatusCode, result);
 
             return StatusCode(StatusCodes.Status201Created, result);
 
@@ -74,17 +61,11 @@ namespace TrainingCenter.API.Controllers
         [Authorize]
         public async Task<IActionResult> Me()
         {
-            if (!int.TryParse(GetUserId(), out int userId) || userId < 1) return Unauthorized();
-
-            var result = await _authService.GetCurrentUserAsync(userId);
+            var userId = User.GetUserId();
+            if (userId == null) return Unauthorized();
+            var result = await _authService.GetCurrentUserAsync(userId.Value);
             if (!result.Success)
-                return result.StatusCode switch
-                {
-                    400 => BadRequest(result),
-                    401 => Unauthorized(result),
-                    404 => NotFound(result),
-                    _ => StatusCode(StatusCodes.Status500InternalServerError, result)
-                };
+                return this.FailureResponse(result.StatusCode, result);
 
             return Ok(result);
         }
@@ -98,14 +79,7 @@ namespace TrainingCenter.API.Controllers
 
             var result = await _authService.RefreshTokenAsync(request);
             if (!result.Success)
-                return result.StatusCode switch
-                {
-                    400 => BadRequest(result),
-                    404 => NotFound(result),
-                    401 => Unauthorized(result),
-                    409 => Conflict(result),
-                    _ => StatusCode(StatusCodes.Status500InternalServerError, result)
-                };
+                return this.FailureResponse(result.StatusCode, result);
 
             return Ok(result);
 
@@ -118,18 +92,12 @@ namespace TrainingCenter.API.Controllers
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
+            var userId = User.GetUserId();
+            if (userId == null) return Unauthorized();
 
-            if (!int.TryParse(GetUserId(), out int userId) || userId < 1) return Unauthorized();
-
-            var result = await _authService.ChangePasswordAsync(userId, request);
+            var result = await _authService.ChangePasswordAsync(userId.Value, request);
             if (!result.Success)
-                return result.StatusCode switch
-                {
-                    400 => BadRequest(result),
-                    401 => Unauthorized(result),
-                    409 => Conflict(result),
-                    _ => StatusCode(StatusCodes.Status500InternalServerError, result)
-                };
+                return this.FailureResponse(result.StatusCode, result);
 
             return Ok(result);
 
@@ -143,17 +111,11 @@ namespace TrainingCenter.API.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            if (!int.TryParse(GetUserId(), out int userId) || userId < 1) return Unauthorized();
-
-            var result = await _authService.LogoutAsync(userId, refreshToken);
+            var userId = User.GetUserId();
+            if (userId == null) return Unauthorized();
+            var result = await _authService.LogoutAsync(userId.Value, refreshToken);
             if (!result.Success)
-                return result.StatusCode switch
-                {
-                    400 => BadRequest(result),
-                    401 => Unauthorized(result),
-                    409 => Conflict(result),
-                    _ => StatusCode(StatusCodes.Status500InternalServerError, result)
-                };
+                return this.FailureResponse(result.StatusCode, result);
 
             return Ok(result);
 

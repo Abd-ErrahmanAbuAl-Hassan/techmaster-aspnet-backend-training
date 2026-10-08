@@ -133,5 +133,9 @@ namespace TrainingCenter.Infrastructure.UnitOfWork
         {
             return await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
         }
+        public IExecutionStrategy CreateExecutionStrategy()
+        {
+            return _context.Database.CreateExecutionStrategy();
+        }
     }
 }

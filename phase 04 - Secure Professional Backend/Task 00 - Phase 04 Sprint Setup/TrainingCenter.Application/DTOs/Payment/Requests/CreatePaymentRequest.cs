@@ -7,6 +7,7 @@ namespace TrainingCenter.Application.DTOs.Payment.Requests
     {
         [Required]
         public int EnrollmentId { get; set; }
+        public int UserId { get; set; }
         [Required]
         public decimal Amount { get; set; }
         [Required]

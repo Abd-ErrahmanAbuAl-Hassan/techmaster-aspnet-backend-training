@@ -1,4 +1,5 @@
-﻿using TrainingCenter.Application.DTOs.Payment.Requests;
+﻿using Microsoft.EntityFrameworkCore;
+using TrainingCenter.Application.DTOs.Payment.Requests;
 using TrainingCenter.Application.DTOs.Payment.Responses;
 using TrainingCenter.Application.Interfaces.Persistence;
 using TrainingCenter.Application.Services.Interfaces;
@@ -80,83 +81,89 @@ namespace TrainingCenter.Application.Services.Implementations
         }
         public async Task<Result<PaymentResponse>> CreatePaymentAsync(CreatePaymentRequest request)
         {
-            await using var transaction = await _unitOfWork.BeginTransactionAsync();
-            try
+            var strategy = _unitOfWork.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
             {
-                var errors = new List<string>();
-                if (request.EnrollmentId < 1) errors.Add("Enrollment ID must be positive number.");
-                if (request.Amount <= 0) errors.Add("Amount must be greater than zero.");
-                if(!Enum.IsDefined(request.PaymentMethod)) errors.Add("Payment method not valid.");
+                await using var transaction = await _unitOfWork.BeginTransactionAsync();
+                try
+                {
+                    var errors = new List<string>();
+                    if (request.EnrollmentId < 1) errors.Add("Enrollment ID must be positive number.");
+                    if (request.Amount <= 0) errors.Add("Amount must be greater than zero.");
+                    if (!Enum.IsDefined(request.PaymentMethod)) errors.Add("Payment method not valid.");
 
-                var enrollment = await _unitOfWork.Enrollments
-                                .GetFirstOrDefaultAsync(e => e.Id == request.EnrollmentId, "TrainingTrack");
+                    if (errors.Any())
+                        return Result<PaymentResponse>.FailureResult("Validation errors.", errors);
 
-                if (!(request.EnrollmentId < 1) && enrollment == null)
+                    var enrollment = await _unitOfWork.Enrollments
+                                    .GetFirstOrDefaultAsync(e => e.Id == request.EnrollmentId, "TrainingTrack");
+
+                    if (enrollment == null) return Result<PaymentResponse>.FailureResult("Enrollment not found.", statusCode: 404);
                     errors.Add("Enrollment not found.");
 
-                if (errors.Any())
-                    return Result<PaymentResponse>.FailureResult("Validation errors.", errors);
-                  
-                if (enrollment.Status == EnrollmentStatus.Cancelled)
-                    return Result<PaymentResponse>.FailureResult("Validation errors.", "Cannot create a payment for a cancelled enrollment.");
+                    if(enrollment.StudentId != request.UserId) return Result<PaymentResponse>.FailureResult("You can only pay your enrollments.", statusCode: 403);
+                    if (enrollment.Status == EnrollmentStatus.Cancelled)
+                        return Result<PaymentResponse>.FailureResult("Validation errors.", "Cannot create a payment for a cancelled enrollment.");
 
-                var totalPaid = (await _unitOfWork.Payments
-                        .GetAllAsync(p => p.EnrollmentId == request.EnrollmentId && 
-                              (p.PaymentStatus == PaymentStatus.PartiallyPaid || 
-                               p.PaymentStatus == PaymentStatus.Paid)))
-                        .Sum(p => p.Amount);
+                    var totalPaid = (await _unitOfWork.Payments
+                            .GetAllAsync(p => p.EnrollmentId == request.EnrollmentId &&
+                                  (p.PaymentStatus == PaymentStatus.PartiallyPaid ||
+                                   p.PaymentStatus == PaymentStatus.Paid)))
+                            .Sum(p => p.Amount);
 
-                decimal totalAmount = totalPaid + request.Amount;
+                    decimal totalAmount = totalPaid + request.Amount;
 
-                if (totalPaid >= enrollment.TrainingTrack!.Price)
-                    return Result<PaymentResponse>.FailureResult("The enrollment is already paid.","Conflict error");
+                    if (totalPaid >= enrollment.TrainingTrack!.Price)
+                        return Result<PaymentResponse>.FailureResult("The enrollment is already paid.", "Conflict error");
 
-                PaymentStatus status = PaymentStatus.Pending;
-                
-                if (totalAmount > enrollment!.TrainingTrack!.Price)
-                    return Result<PaymentResponse>.FailureResult("Validation errors.", "Payment amount exceeds track price.");
-                else if (totalAmount < enrollment!.TrainingTrack!.Price)
-                    status = PaymentStatus.PartiallyPaid;
-                else 
-                    status = PaymentStatus.Paid;
+                    PaymentStatus status = PaymentStatus.Pending;
 
-                var payment = new Payment
-                {
-                    EnrollmentId = request.EnrollmentId,
-                    Amount = request.Amount,
-                    PaymentMethod = request.PaymentMethod,
-                    PaymentDate = DateTime.UtcNow,
-                    PaymentStatus = status,
-                    ReferenceNumber = $"REF-{enrollment.Id}-{Guid.NewGuid():N}"[..20],
-                    Notes = request.Notes
-                };
+                    if (totalAmount > enrollment!.TrainingTrack!.Price)
+                        return Result<PaymentResponse>.FailureResult("Validation errors.", "Payment amount exceeds track price.");
+                    else if (totalAmount < enrollment!.TrainingTrack!.Price)
+                        status = PaymentStatus.PartiallyPaid;
+                    else
+                        status = PaymentStatus.Paid;
 
-                await _unitOfWork.Payments.AddAsync(payment);
+                    var payment = new Payment
+                    {
+                        EnrollmentId = request.EnrollmentId,
+                        Amount = request.Amount,
+                        PaymentMethod = request.PaymentMethod,
+                        PaymentDate = DateTime.UtcNow,
+                        PaymentStatus = status,
+                        ReferenceNumber = $"REF-{enrollment.Id}-{Guid.NewGuid():N}"[..20],
+                        Notes = request.Notes
+                    };
 
-                if (totalAmount >= enrollment.TrainingTrack!.Price)
-                {
-                    enrollment.Status = EnrollmentStatus.Active;
+                    await _unitOfWork.Payments.AddAsync(payment);
+
+                    if (totalAmount >= enrollment.TrainingTrack!.Price)
+                    {
+                        enrollment.Status = EnrollmentStatus.Active;
+                    }
+
+                    await _unitOfWork.SaveAsync();
+                    await transaction.CommitAsync();
+
+                    return Result<PaymentResponse>.SuccessResult(new PaymentResponse
+                    {
+                        Id = payment.Id,
+                        Amount = payment.Amount,
+                        PaymentMethod = payment.PaymentMethod,
+                        PaymentDate = payment.PaymentDate,
+                        PaymentStatus = payment.PaymentStatus,
+                        ReferenceNumber = payment.ReferenceNumber
+                    }, "Payment created successfully.");
+
                 }
-
-                await _unitOfWork.SaveAsync();
-                await transaction.CommitAsync();
-
-                return Result<PaymentResponse>.SuccessResult(new PaymentResponse
+                catch (Exception ex)
                 {
-                    Id = payment.Id,
-                    Amount = payment.Amount,
-                    PaymentMethod = payment.PaymentMethod,
-                    PaymentDate = payment.PaymentDate,
-                    PaymentStatus = payment.PaymentStatus,
-                    ReferenceNumber = payment.ReferenceNumber
-                }, "Payment created successfully.");
-
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                return Result<PaymentResponse>.FailureResult( "Error creating payment.", ex.Message);
-            }
+                    await transaction.RollbackAsync();
+                    return Result<PaymentResponse>.FailureResult("Error creating payment.", ex.Message);
+                }
+            });
         }
         public async Task<Result<PagedResult<PaymentResponse>>> GetEnrollmentPaymentsAsync(int enrollmentId, int pageNumber = 1, int pageSize = 10)
         {

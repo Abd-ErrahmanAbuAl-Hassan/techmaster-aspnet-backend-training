@@ -17,6 +17,7 @@ namespace TrainingCenter.Application.Interfaces.Persistence
         Task<int> SaveAsync();
 
         Task<IDbContextTransaction> BeginTransactionAsync();
+        IExecutionStrategy CreateExecutionStrategy();
     }
 }
 

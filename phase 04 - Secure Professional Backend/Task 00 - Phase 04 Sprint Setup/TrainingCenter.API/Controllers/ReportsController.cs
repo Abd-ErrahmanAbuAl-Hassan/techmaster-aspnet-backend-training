@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TrainingCenter.Application.Services.Interfaces;
 
 namespace TrainingCenter.Controllers
 {
     [ApiController]
+    [Authorize(Roles ="Admin")]
     [Route("api/[controller]")]
     public class ReportsController : ControllerBase
     {
@@ -19,11 +21,7 @@ namespace TrainingCenter.Controllers
         {
             var result = await _reportService.GetDashboardSummaryAsync();
             if (!result.Success)
-            {
-                if (result.StatusCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
-                else if (result.StatusCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
-                else if (result.StatusCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
-            }
+                return this.FailureResponse(result.StatusCode, result);
             return Ok(result);
         }
 
@@ -40,11 +38,7 @@ namespace TrainingCenter.Controllers
 
             var result = await _reportService.GetUnpaidEnrollmentsAsync(pageNumber, pageSize);
             if (!result.Success)
-            {
-                if (result.StatusCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
-                else if (result.StatusCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
-                else if (result.StatusCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
-            }
+                return this.FailureResponse(result.StatusCode, result);
             return Ok(result);
         }
 
@@ -61,11 +55,7 @@ namespace TrainingCenter.Controllers
 
             var result = await _reportService.GetTrackCapacityAsync(pageNumber, pageSize);
             if (!result.Success)
-            {
-                if (result.StatusCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
-                else if (result.StatusCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
-                else if (result.StatusCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
-            }
+                return this.FailureResponse(result.StatusCode, result);
             return Ok(result);
         }
 
@@ -82,11 +72,7 @@ namespace TrainingCenter.Controllers
 
             var result = await _reportService.GetTracksWithAvailableSeatsAsync(pageNumber, pageSize);
             if (!result.Success)
-            {
-                if (result.StatusCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
-                else if (result.StatusCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
-                else if (result.StatusCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
-            }
+                return this.FailureResponse(result.StatusCode, result);
             return Ok(result);
         }
 
@@ -95,11 +81,7 @@ namespace TrainingCenter.Controllers
         {
             var result = await _reportService.GetRevenueSummaryAsync();
             if (!result.Success)
-            {
-                if (result.StatusCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
-                else if (result.StatusCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
-                else if (result.StatusCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
-            }
+                return this.FailureResponse(result.StatusCode, result);
             return Ok(result);
         }
 
@@ -116,11 +98,7 @@ namespace TrainingCenter.Controllers
 
             var result = await _reportService.GetRevenueByTrackAsync(pageNumber, pageSize);
             if (!result.Success)
-            {
-                if (result.StatusCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
-                else if (result.StatusCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
-                else if (result.StatusCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
-            }
+                return this.FailureResponse(result.StatusCode, result);
             return Ok(result);
         }
         [HttpGet("top-tracks")]
@@ -136,11 +114,7 @@ namespace TrainingCenter.Controllers
 
             var result = await _reportService.GetTopTrackAsync(topCount);
             if (!result.Success)
-            {
-                if (result.StatusCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
-                else if (result.StatusCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
-                else if (result.StatusCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
-            }
+                return this.FailureResponse(result.StatusCode, result);
             return Ok(result);
         }
         [HttpGet("instructors-workload")]
@@ -148,11 +122,7 @@ namespace TrainingCenter.Controllers
         {
             var result = await _reportService.GetInstructorWorkLoadAsync();
             if (!result.Success)
-            {
-                if (result.StatusCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
-                else if (result.StatusCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
-                else if (result.StatusCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
-            }
+                return this.FailureResponse(result.StatusCode, result);
             return Ok(result);
         }
         [HttpGet("students-without-payments")]
@@ -160,11 +130,7 @@ namespace TrainingCenter.Controllers
         {
             var result = await _reportService.GetStudentsWithoutPaymentsAsync();
             if (!result.Success)
-            {
-                if (result.StatusCode == 404) return StatusCode(StatusCodes.Status404NotFound, result);
-                else if (result.StatusCode == 400) return StatusCode(StatusCodes.Status400BadRequest, result);
-                else if (result.StatusCode == 500) return StatusCode(StatusCodes.Status500InternalServerError, result);
-            }
+                return this.FailureResponse(result.StatusCode, result);
             return Ok(result);
         }
     }
