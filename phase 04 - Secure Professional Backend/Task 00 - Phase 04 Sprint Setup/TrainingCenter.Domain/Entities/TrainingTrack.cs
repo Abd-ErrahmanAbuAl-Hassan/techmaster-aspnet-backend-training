@@ -24,6 +24,7 @@ namespace TrainingCenter.Domain.Entities
         public virtual Instructor Instructor { get; set; } = null!;
 
         public virtual ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
+        public virtual ICollection<TrackSession> Sessions { get; set; } = new List<TrackSession>();
 
     }
 }

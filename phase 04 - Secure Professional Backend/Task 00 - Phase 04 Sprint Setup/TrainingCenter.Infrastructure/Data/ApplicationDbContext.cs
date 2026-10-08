@@ -19,6 +19,7 @@ namespace TrainingCenter.Infrastructure.Data
         public DbSet<TrainingTrack> TrainingTracks { get; set; }
         public DbSet<Payment> Payments { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+        public DbSet<TrackSession> TrackSessions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -13,6 +13,7 @@ namespace TrainingCenter.Application.Interfaces.Persistence
         ITrackRepository Tracks { get; }
         IEnrollmentRepository Enrollments { get; }
         IRefreshTokenRepository RefreshTokens { get; }
+        ITrackSessionRepository TrackSessions { get; }
 
         Task<int> SaveAsync();
 

@@ -18,7 +18,7 @@ namespace TrainingCenter.Infrastructure.UnitOfWork
         private ITrackRepository _tracks;
         private IEnrollmentRepository _enrollments;
         private IRefreshTokenRepository _refreshTokens;
-
+        private ITrackSessionRepository _trackSessions;
         public UnitOfWork(ApplicationDbContext context)
         {
             _context = context;
@@ -117,6 +117,18 @@ namespace TrainingCenter.Infrastructure.UnitOfWork
     }
 
                 return _refreshTokens;
+            }
+        }
+        public ITrackSessionRepository TrackSessions
+        {
+            get
+            {
+                if (_trackSessions is null)
+                {
+                    _trackSessions = new TrackSessionRepository(_context);
+                }
+
+                return _trackSessions;
             }
         }
         public void Dispose()

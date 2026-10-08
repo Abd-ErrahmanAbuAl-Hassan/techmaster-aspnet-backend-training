@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Drawing.Printing;
 using TrainingCenter.Application.DTOs.Track.Requests;
 using TrainingCenter.Application.Services.Interfaces;
 using TrainingCenter.Domain.Enums;
@@ -97,7 +98,7 @@ namespace TrainingCenter.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Admin,Instructor")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreateTrack([FromBody] CreateTrackRequest request)
         {
             if (request.InstructorId < 1) return BadRequest(new
@@ -109,8 +110,7 @@ namespace TrainingCenter.Controllers
             });
 
             var userId = User.GetUserId();
-            if (userId == null) return this.FailureResponse(401, new {message = "Unauthorized" });
-            if(request.InstructorId != userId) return this.FailureResponse(403, new { message = "Access Denied." });
+            if (userId == null) return this.FailureResponse(401, new { message = "Unauthorized" });
 
             var result = await _trackService.CreateTrackAsync(request);
             if (!result.Success) return this.FailureResponse(result.StatusCode, result);
@@ -189,6 +189,68 @@ namespace TrainingCenter.Controllers
             if (!result.Success) return this.FailureResponse(result.StatusCode, result);
 
             return Ok(result);
+        }
+
+        [HttpPut("{trackId:int}/assign-instructor")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> AssignInstructorToTrack(int trackId, [FromBody] int instructorId)
+        {
+            if (trackId < 1 || instructorId < 1) return BadRequest(new
+            {
+                Success = false,
+                Message = "Validation error",
+                StatusCode = 400,
+                Errors = new List<string> { "ID must be a positive number." }
+            });
+
+            if (User.GetUserId() == null) return this.FailureResponse(401, new { message = "Unauthorized" });
+            var result = await _trackService.AssignInstructorToTrackAsync(trackId, instructorId);
+
+            if (!result.Success) this.FailureResponse(result.StatusCode, result);
+
+            return Ok(result);
+        }
+
+        [HttpPost("~/api/instructor/tracks/{trackId:int}/sessions")]
+        [Authorize(Roles = "Admin,Instructor")]
+        public async Task<IActionResult> CreateTrackSession(int trackId, [FromBody] CreateTrackSessionRequest request)
+        {
+
+            var (_, error) = await this.EnsureTrackAccessAsync(_trackService, trackId);
+            if (error != null) return error;
+
+            var result = await _trackService.CreateTrackSessionAsync(trackId, request);
+            if (!result.Success) return this.FailureResponse(result.StatusCode, result);
+
+            return Created("~/api/track/session/{id}", result); // get by id endpoint not implemented yet.
+        }
+
+        [HttpPut("~/api/instructor/sessions/{sessionId}")]
+        [Authorize(Roles = "Admin,Instructor")]
+        public async Task<IActionResult> CreateTrackSession(int sessionId, [FromBody] UpdateSessionRequest request)
+        {
+            var userId = User.GetUserId();
+            if (userId == null) return Unauthorized();
+            if (userId != request.InstructorId && !User.IsAdmin()) this.ForbiddenResponse("You can only access own sessions.");
+
+            var result = await _trackService.UpdateTrackSessionAsync(sessionId, request);
+            if (!result.Success) return this.FailureResponse(result.StatusCode, result);
+
+            return Ok(result); 
+        }
+
+        [HttpGet("~/api/instructor/tracks/{trackId:int}/progress")]
+        [Authorize(Roles = "Admin,Instructor")]
+        public async Task<IActionResult> CreateTrackSession(int trackId, [FromQuery] int instructorId)
+        {
+            var userId = User.GetUserId();
+            if (userId == null) return Unauthorized();
+            if (userId != instructorId && !User.IsAdmin()) this.ForbiddenResponse("You can only access own sessions.");
+
+            var result = await _trackService.GetTrackProgressAsync(trackId, instructorId);
+            if (!result.Success) return this.FailureResponse(result.StatusCode, result);
+
+            return Ok(result); 
         }
     }
 }

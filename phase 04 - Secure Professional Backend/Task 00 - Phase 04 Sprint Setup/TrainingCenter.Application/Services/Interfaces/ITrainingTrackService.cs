@@ -11,6 +11,11 @@ namespace TrainingCenter.Application.Services.Interfaces
         Task<Result<TrackDetailsResponse>> GetTrackByIdAsync(int id);
         Task<Result<TrackDetailsResponse>> CreateTrackAsync(CreateTrackRequest request);
         Task<Result<TrackDetailsResponse>> UpdateTrackAsync(int id, UpdateTrackRequest request);
-        Task<Result<string>> DeleteTrackAsync(int id, int instructorId);
+        Task<Result> DeleteTrackAsync(int id, int instructorId);
+        Task<Result> AssignInstructorToTrackAsync(int id, int instructorId);
+        Task<Result<BasicTrackSessionResponse>> CreateTrackSessionAsync(int trackId, CreateTrackSessionRequest request);
+        Task<Result<DetailedTrackSessionResponse>> UpdateTrackSessionAsync(int trackId, UpdateSessionRequest request);
+        Task<Result<TrackProgressResponse>> GetTrackProgressAsync(int trackId, int instructorId);
+
     }
 }

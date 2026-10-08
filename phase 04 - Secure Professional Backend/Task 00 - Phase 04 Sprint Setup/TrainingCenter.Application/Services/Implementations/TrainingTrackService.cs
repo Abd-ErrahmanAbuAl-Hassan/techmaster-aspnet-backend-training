@@ -1,9 +1,11 @@
-﻿using System.Security.Cryptography;
+﻿using Azure.Core;
+using System.Security.Cryptography;
 using TrainingCenter.Application.DTOs.Track.Requests;
 using TrainingCenter.Application.DTOs.Track.Responses;
 using TrainingCenter.Application.DTOs.User.Responses;
 using TrainingCenter.Application.Interfaces.Persistence;
 using TrainingCenter.Application.Services.Interfaces;
+using TrainingCenter.Application.Validations;
 using TrainingCenter.Domain.Entities;
 using TrainingCenter.Domain.Enums;
 using TrainingCenter.Domain.Results;
@@ -19,7 +21,7 @@ namespace TrainingCenter.Application.Services.Implementations
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<Result<PagedResult<TrackDetailsResponse>>> GetTracksAsync(int pageNumber = 1, int pageSize = 10, string keyword = null, TrackLevel? level = null, TrackStatus? status = null, int? instructorId = null)
+        public async Task<Result<PagedResult<TrackDetailsResponse>>> GetTracksAsync(int pageNumber = 1, int pageSize = 10, string? keyword = null, TrackLevel? level = null, TrackStatus? status = null, int? instructorId = null)
         {
             try
             {
@@ -29,16 +31,16 @@ namespace TrainingCenter.Application.Services.Implementations
                 if (pageNumber < 1) errors.Add("Page number must be positive number.");
                 if (pageSize < 1) errors.Add("Page size must be positive number.");
                 if (pageSize > 50) errors.Add("Page size must be at most 50.");
-                if (!Enum.IsDefined(typeof(TrackLevel), level)) errors.Add("Track level is invalid.");
-                if (!Enum.IsDefined(typeof(TrackStatus), status)) errors.Add("Track status is invalid.");
+                if (level.HasValue && !Enum.IsDefined(typeof(TrackLevel), level)) errors.Add("Track level is invalid.");
+                if (status.HasValue && !Enum.IsDefined(typeof(TrackStatus), status)) errors.Add("Track status is invalid.");
 
                 if (errors.Any())
                     return Result<PagedResult<TrackDetailsResponse>>.FailureResult("Validation errors.", errors);
 
                 var query = await _unitOfWork.Tracks.GetAllAsync(t => !t.IsDeleted, includes: "Instructor,Enrollments");
-                    
 
-                if (!string.IsNullOrWhiteSpace(keyword))
+
+                if (!string.IsNullOrEmpty(keyword))
                     query = query.Where(t => t.Title.Contains(keyword) || t.Description.Contains(keyword));
                 if (level.HasValue)
                     query = query.Where(t => t.Level == level.Value);
@@ -47,8 +49,8 @@ namespace TrainingCenter.Application.Services.Implementations
                 if (instructorId.HasValue)
                     query = query.Where(t => t.InstructorId == instructorId.Value);
 
-                var totalCount =  query.Count();
-                var tracks =  query
+                var totalCount = query.Count();
+                var tracks = query
                     .OrderByDescending(t => t.CreatedAt)
                     .Skip((pageNumber - 1) * pageSize)
                     .Take(pageSize)
@@ -56,44 +58,44 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!tracks.Any())
                     return Result<PagedResult<TrackDetailsResponse>>.FailureResult("No tracks are found.", ".NotFound");
-             
+
 
                 var response = tracks.Select(t => MapToTrackDetailsResponse(t)).ToList();
 
                 return Result<PagedResult<TrackDetailsResponse>>.SuccessResult(new PagedResult<TrackDetailsResponse>
-                    {
-                        Items = response,
-                        TotalCount = totalCount,
-                        PageNumber = pageNumber,
-                        PageSize = pageSize
-                    },"Tracks retrieved successfully.");
-               
+                {
+                    Items = response,
+                    TotalCount = totalCount,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                }, "Tracks retrieved successfully.");
+
             }
             catch (Exception ex)
             {
                 return Result<PagedResult<TrackDetailsResponse>>.FailureResult("Error retrieving tracks.", ex.Message);
-          
+
             }
         }
         public async Task<Result<TrackDetailsResponse>> GetTrackByIdAsync(int id)
         {
             try
             {
-                if (id < 1) return Result<TrackDetailsResponse>.FailureResult("Validation Errors.","Track ID must be positive number."  );
+                if (id < 1) return Result<TrackDetailsResponse>.FailureResult("Validation Errors.", "Track ID must be positive number.");
 
                 var track = await _unitOfWork.Tracks.GetFirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted, "Instructor,Enrollments");
-             
+
                 if (track == null)
                     return Result<TrackDetailsResponse>.FailureResult("Track not found.", ".NotFound");
-       
 
-                return Result<TrackDetailsResponse>.SuccessResult(MapToTrackDetailsResponse(track),"Track retrieved successfully.");
-            
+
+                return Result<TrackDetailsResponse>.SuccessResult(MapToTrackDetailsResponse(track), "Track retrieved successfully.");
+
             }
             catch (Exception ex)
             {
                 return Result<TrackDetailsResponse>.FailureResult("Error retrieving track.", ex.Message);
-               
+
             }
         }
         public async Task<Result<TrackDetailsResponse>> CreateTrackAsync(CreateTrackRequest request)
@@ -128,7 +130,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (await _unitOfWork.Tracks.ExistsAsync(t => t.Code == code))
                     return Result<TrackDetailsResponse>.FailureResult("Validation Errors.", "Could not generate a unique track code. Please try again.");
-            
+
                 var track = new TrainingTrack
                 {
                     Title = request.Title,
@@ -148,16 +150,16 @@ namespace TrainingCenter.Application.Services.Implementations
                 await _unitOfWork.SaveAsync();
 
                 track = await _unitOfWork.Tracks
-                    
+
                     .GetFirstOrDefaultAsync(t => t.Id == track.Id, "Instructor,Enrollments");
 
-                return Result<TrackDetailsResponse>.SuccessResult(MapToTrackDetailsResponse(track),"Track created successfully.");
-              
+                return Result<TrackDetailsResponse>.SuccessResult(MapToTrackDetailsResponse(track), "Track created successfully.");
+
             }
             catch (Exception ex)
             {
                 return Result<TrackDetailsResponse>.FailureResult("Error creating track.", ex.Message);
-              
+
             }
         }
         public async Task<Result<TrackDetailsResponse>> UpdateTrackAsync(int id, UpdateTrackRequest request)
@@ -178,11 +180,11 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (track == null)
                     return Result<TrackDetailsResponse>.FailureResult("Track not found.", ".NotFound");
-              
+
 
                 if (track.InstructorId != request.InstructorId)
                     return Result<TrackDetailsResponse>.FailureResult("Access Denied.", $"Instructor id:{request.InstructorId} not allowed to access.");
-       
+
                 var effectiveStart = request.StartDate ?? track.StartDate;
                 var effectiveEnd = request.EndDate ?? track.EndDate;
                 if (effectiveStart >= effectiveEnd)
@@ -190,8 +192,8 @@ namespace TrainingCenter.Application.Services.Implementations
                 if (request.Capacity.HasValue && request.Capacity.Value < track.Enrollments.Count(e => e.Status == EnrollmentStatus.Active || e.Status == EnrollmentStatus.Completed))
                     errors.Add("Capacity cannot be less than the number of currently enrolled students.");
                 if (errors.Any())
-                    return Result<TrackDetailsResponse>.FailureResult("Validation Errors.",errors );
-              
+                    return Result<TrackDetailsResponse>.FailureResult("Validation Errors.", errors);
+
 
                 if (!string.IsNullOrWhiteSpace(request.Title))
                     track.Title = request.Title;
@@ -210,16 +212,16 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 await _unitOfWork.SaveAsync();
 
-                return Result<TrackDetailsResponse>.SuccessResult( MapToTrackDetailsResponse(track),"Track updated successfully.");
-             
+                return Result<TrackDetailsResponse>.SuccessResult(MapToTrackDetailsResponse(track), "Track updated successfully.");
+
             }
             catch (Exception ex)
             {
                 return Result<TrackDetailsResponse>.FailureResult("Error updating track.", ex.Message);
-            
+
             }
         }
-        public async Task<Result<string>> DeleteTrackAsync(int id, int InstructorId)
+        public async Task<Result> DeleteTrackAsync(int id, int InstructorId)
         {
             try
             {
@@ -229,35 +231,175 @@ namespace TrainingCenter.Application.Services.Implementations
                 if (InstructorId < 1) errors.Add("Instructor ID must be positive number.");
 
                 if (errors.Any())
-                    return Result<string>.FailureResult("Validation errors.", errors);
+                    return Result.FailureResult("Validation errors.", errors, 400);
                 var track = await _unitOfWork.Tracks
                     .GetFirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted, "Enrollments");
 
                 if (track == null)
-                    return Result<string>.FailureResult( "Track not found.",".NotFound" );
-              
+                    return Result.FailureResult("Track not found.", ".NotFound", 404);
+
                 if (track.InstructorId != InstructorId)
-                    return Result<string>.FailureResult("Access Denied.", $"Instructor id:{InstructorId} not allowed to access.");
-                
+                    return Result.FailureResult("Access Denied.", $"Instructor id:{InstructorId} not allowed to access.", 403);
+
 
                 var activeEnrollments = track.Enrollments?.Count(e => e.Status == EnrollmentStatus.Active) ?? 0;
                 if (activeEnrollments > 0)
-                    return Result<string>.FailureResult("Cannot delete track with active enrollments.", $"Track has {activeEnrollments} active enrollment(s).");
-             
+                    return Result.FailureResult("Cannot delete track with active enrollments.", $"Track has {activeEnrollments} active enrollment(s).", 409);
+
 
                 track.IsDeleted = true;
                 track.DeletedAt = DateTime.UtcNow;
                 await _unitOfWork.SaveAsync();
 
-                return Result<string>.SuccessResult($"Track {id} has been soft deleted.","Track deleted successfully.");
-              
+                return Result.SuccessResult($"Track {id} has been soft deleted.");
+
             }
             catch (Exception ex)
             {
-                return Result<string>.FailureResult("Error deleting track.", ex.Message);
-               
+                return Result.FailureResult("Error deleting track.", ex.Message);
+
             }
         }
+        public async Task<Result> AssignInstructorToTrackAsync(int id, int instructorId)
+        {
+            var errors = new List<string>();
+            if (id < 1) errors.Add("Track ID must be positive number.");
+            if (instructorId < 1) errors.Add("Instructor ID must be positive number.");
+
+            if (errors.Any())
+                return Result.FailureResult("Validation errors.", errors, 400);
+
+            var track = await _unitOfWork.Tracks.GetFirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted);
+
+            if (track == null)
+                return Result.FailureResult("Track not found.", ".NotFound", 404);
+
+            var instructor = await _unitOfWork.Users.GetByIdAsync(instructorId);
+            if (instructor == null) return Result.FailureResult("Instructor not found.", ".NotFound", 404);
+            if (!instructor.IsActive) return Result.FailureResult("Instructor is inactive.", "Conflict", 409);
+            if (track.InstructorId == instructorId) return Result.FailureResult("Instructor is already assigned to this track.", "Conflict", 409);
+
+            track.InstructorId = instructorId;
+            await _unitOfWork.SaveAsync();
+            return Result.SuccessResult("Instructor is assigned successfully");
+            throw new NotImplementedException();
+        }
+        public async Task<Result<BasicTrackSessionResponse>> CreateTrackSessionAsync(int trackId, CreateTrackSessionRequest request)
+        {
+            var errors = TrackValidation.ValidateTrackSession(request);
+            if (trackId < 1) errors.Add("Track ID must be a positive number.");
+            if (errors.Any())
+                return Result<BasicTrackSessionResponse>.FailureResult("Validation errors.", errors, 400);
+
+            var track = await _unitOfWork.Tracks.GetFirstOrDefaultAsync(t => t.Id == trackId && !t.IsDeleted);
+
+            if (track == null)
+                return Result<BasicTrackSessionResponse>.FailureResult($"Track with Id:{trackId} not found or deleted.", "Track not found.", 404);
+            if (!track.IsActive)
+                return Result<BasicTrackSessionResponse>.FailureResult("Cannot create session for inactive track.", "Track is inactive", 409);
+
+            var instructor = await _unitOfWork.Users.GetByIdAsync(request.InstructorId!.Value);
+
+            if (instructor == null)
+                return Result<BasicTrackSessionResponse>.FailureResult("Instructor not authenticated.", "instructor not found", 401);
+            if (!instructor.IsActive)
+                return Result<BasicTrackSessionResponse>.FailureResult("Cannot create session by inactive instructor.", "Instructor is inactive", 409);
+            if (track.InstructorId != request.InstructorId)
+                return Result<BasicTrackSessionResponse>.FailureResult("Only create sessions for your own tracks.", "Access Denied.", 403);
+
+            var session = new TrackSession
+            {
+                Title = request.Title,
+                Description = request.Description,
+                MeetingLink = request.MeetingLink,
+                SessionDate = request.SessionDate,
+                CreatedByInstructorId = request.InstructorId.Value,
+                TrackId = trackId
+            };
+
+            await _unitOfWork.TrackSessions.AddAsync(session);
+            await _unitOfWork.SaveAsync();
+
+            return Result<BasicTrackSessionResponse>.SuccessResult(new BasicTrackSessionResponse
+            {
+                SessionId = session.Id,
+                Title = session.Title,
+                MeetingLink = session.MeetingLink,
+                SessionDate = session.SessionDate
+            });
+        }
+        public async Task<Result<DetailedTrackSessionResponse>> UpdateTrackSessionAsync(int sessionId, UpdateSessionRequest request)
+        {
+            var errors = new List<string>();
+            if (sessionId < 1) errors.Add("Track ID must be a positive number.");
+            if (request.InstructorId < 1) errors.Add("Instructor ID must be a positive number.");
+            if (request.MeetingLink != null && !TrackValidation.TryValidateUrl(request.MeetingLink, out var error)) errors.Add(error!);
+            if (errors.Any())
+                return Result<DetailedTrackSessionResponse>.FailureResult("Validation errors.", errors, 400);
+
+            var session = await _unitOfWork.TrackSessions.GetFirstOrDefaultAsync(t => t.Id == sessionId);
+
+            if (session == null)
+                return Result<DetailedTrackSessionResponse>.FailureResult($"Session with Id:{sessionId} not found.", "Session not found.", 404);
+            
+            var instructor = await _unitOfWork.Users.GetByIdAsync(request.InstructorId!);
+
+            if (instructor == null)
+                return Result<DetailedTrackSessionResponse>.FailureResult("Instructor not authenticated.", "instructor not found", 401);
+            if (!instructor.IsActive)
+                return Result<DetailedTrackSessionResponse>.FailureResult("Cannot update session by inactive instructor.", "Instructor is inactive", 409);
+            if (session.CreatedByInstructorId != request.InstructorId)
+                return Result<DetailedTrackSessionResponse>.FailureResult("Only update your own sessions.", "Access Denied.", 403);
+
+            session.Title = request.Title ?? session.Title;
+            session.Description = request.Description ?? session.Description;
+            session.MeetingLink = request.MeetingLink ?? session.MeetingLink;
+            session.SessionDate = request.SessionDate ?? session.SessionDate;
+
+            await _unitOfWork.SaveAsync();
+
+            return Result<DetailedTrackSessionResponse>.SuccessResult(new DetailedTrackSessionResponse
+            {
+                SessionId = session.Id,
+                Title = session.Title,
+                Description = session.Description,
+                MeetingLink = session.MeetingLink,
+                SessionDate = session.SessionDate,
+                Instructor = new InstructorBasicResponse
+                {
+                    Id = instructor.Id,
+                    FullName = instructor.FullName,
+                    Email = instructor.Email
+                }
+            });
+        }
+        public async Task<Result<TrackProgressResponse>> GetTrackProgressAsync(int trackId, int instructorId)
+        {
+            if (trackId < 1 || instructorId < 1)
+                return Result<TrackProgressResponse>.FailureResult("Validation errors.", "ID must be positive number.", 400);
+            
+            var track = await _unitOfWork.Tracks.GetFirstOrDefaultAsync(t => t.Id == trackId && !t.IsDeleted,includes:"Enrollments");
+
+            if (track == null)
+                return Result<TrackProgressResponse>.FailureResult($"Track with Id:{trackId} not found or deleted.", "Track not found.", 404);
+            if (!track.IsActive)
+                return Result<TrackProgressResponse>.FailureResult("Cannot retrieve progress for inactive track.", "Track is inactive", 409);
+
+           if (track.InstructorId != instructorId)
+                return Result<TrackProgressResponse>.FailureResult("Only can see your own tracks progress.", "Access Denied.", 403);
+
+           var enrollmentCount = track.Enrollments?.Count ?? 0;
+           var progressPercentage = track.Enrollments?.Sum(e=>e.ProgressPercentage) ?? 0;
+
+            return Result<TrackProgressResponse>.SuccessResult(new TrackProgressResponse
+            {
+                TrackTitle = track.Title,
+                EnrollmentCount = enrollmentCount,
+                ProgressPercentage = progressPercentage
+            });
+
+        }
+
         private TrackDetailsResponse MapToTrackDetailsResponse(TrainingTrack track)
         {
             var enrolledCount = track.Enrollments?.Count(e => e.Status == EnrollmentStatus.Active || e.Status == EnrollmentStatus.Completed) ?? 0;
@@ -281,5 +423,6 @@ namespace TrainingCenter.Application.Services.Implementations
                 UpdatedAt = track.UpdatedAt
             };
         }
+
     }
 }

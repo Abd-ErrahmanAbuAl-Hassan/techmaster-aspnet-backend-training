@@ -12,5 +12,6 @@ namespace TrainingCenter.Application.Services.Interfaces
         Task<Result<PagedResult<TrackDetailsResponse>>> GetInstructorTracksAsync(int instructorId, int pageNumber = 1, int pageSize = 10);
         Task<Result<InstructorBasicResponse>> CreateInstructorAsync(CreateInstructorRequest request);
         Task<Result<InstructorBasicResponse>> UpdateInstructorAsync(int id, UpdateInstructorRequest request);
+
     }
 }
