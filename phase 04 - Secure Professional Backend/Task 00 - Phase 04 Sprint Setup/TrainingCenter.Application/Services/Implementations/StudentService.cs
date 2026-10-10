@@ -1,4 +1,5 @@
-﻿using TrainingCenter.Application.DTOs.Enrollment.Responses;
+﻿using Microsoft.Extensions.Logging;
+using TrainingCenter.Application.DTOs.Enrollment.Responses;
 using TrainingCenter.Application.DTOs.User.Requests;
 using TrainingCenter.Application.DTOs.User.Responses;
 using TrainingCenter.Application.Helpers;
@@ -14,23 +15,41 @@ namespace TrainingCenter.Application.Services.Implementations
     public class StudentService : IStudentService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ILogger<StudentService> _logger;
 
-        public StudentService(IUnitOfWork unitOfWork)
+        public StudentService(IUnitOfWork unitOfWork, ILogger<StudentService> logger)
         {
             _unitOfWork = unitOfWork;
+            _logger = logger;
         }
 
-        public async Task<Result<PagedResult<StudentListItemResponse>>> GetStudentsAsync(int pageNumber = 1, int pageSize = 10, string search = null, bool? isActive = null, bool? isDeleted = null)
+        public async Task<Result<PagedResult<StudentListItemResponse>>> GetStudentsAsync(
+            int pageNumber = 1, 
+            int pageSize = 10, 
+            string search = null, 
+            bool? isActive = null, 
+            bool? isDeleted = null)
         {
             try
             {
+                _logger.LogInformation("Fetching students. Page: {PageNumber}, Size: {PageSize}, Search: {Search}, IsActive: {IsActive}, IsDeleted: {IsDeleted}",
+                    pageNumber, pageSize, search, isActive, isDeleted);
+
                 var errors = new List<string>();
-                if (pageNumber < 1) errors.Add("Page number must be positive number.");
-                if (pageSize < 1) errors.Add("Page size must be positive number.");
-                if (pageSize > 50) errors.Add("Page size must be at most 50.");
+                if (pageNumber < 1)
+                    errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Page number"));
+                if (pageSize < 1)
+                    errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Page size"));
+                if (pageSize > 50)
+                    errors.Add("Page size must be at most 50.");
 
                 if (errors.Any())
-                    return Result<PagedResult<StudentListItemResponse>>.FailureResult("Validation errors.", errors);
+                {
+                    _logger.LogWarning("Validation failed for GetStudentsAsync. Errors: {@Errors}", errors);
+                    return Result<PagedResult<StudentListItemResponse>>.ValidationErrorResult(
+                        "Validation errors occurred. Please review the details below.",
+                        errors);
+                }
 
                 var query = await _unitOfWork.Students.GetAllAsync();
 
@@ -44,7 +63,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!string.IsNullOrWhiteSpace(search))
                     query = query.Where(s => s.Email.Contains(search.Trim())
-                                            || (s.FName + "" + s.LName).Contains(search.Trim())
+                                            || (s.FName + " " + s.LName).Contains(search.Trim())
                                             || s.PhoneNumber.Contains(search.Trim()));
 
                 var totalCount = query.Count();
@@ -64,36 +83,57 @@ namespace TrainingCenter.Application.Services.Implementations
                     .ToList();
 
                 if (!students.Any())
-                    return Result<PagedResult<StudentListItemResponse>>.FailureResult("No Students are found.", ".NotFound");
-              
-
-                return Result<PagedResult<StudentListItemResponse>>.SuccessResult(new PagedResult<StudentListItemResponse>
                 {
-                    Items = students,
-                    TotalCount = totalCount,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize
-                }, "Students retrieved successfully.");
-              
+                    _logger.LogInformation("No students found with the specified criteria.");
+                    return Result<PagedResult<StudentListItemResponse>>.NotFoundResult(
+                        ResultMessages.NotFound.RecordNotFound);
+                }
+
+                _logger.LogInformation("Successfully retrieved {Count} students.", students.Count);
+
+                return Result<PagedResult<StudentListItemResponse>>.SuccessResult(
+                    new PagedResult<StudentListItemResponse>
+                    {
+                        Items = students,
+                        TotalCount = totalCount,
+                        PageNumber = pageNumber,
+                        PageSize = pageSize
+                    },
+                    string.Format(ResultMessages.Success.ResourceRetrieved, "Students"));
             }
             catch (Exception ex)
             {
-                return Result<PagedResult<StudentListItemResponse>>.FailureResult("Error retrieving students.", ex.Message);
-            
+                _logger.LogError(ex, "An error occurred while retrieving students. Exception: {@Exception}", ex);
+                return Result<PagedResult<StudentListItemResponse>>.FailureResult(
+                    ResultMessages.ServerError.ProcessingError,
+                    ex.Message);
             }
         }
+
         public async Task<Result<StudentDetailsResponse>> GetStudentByIdAsync(int id)
         {
             try
             {
-                if (id < 1) return Result<StudentDetailsResponse>.FailureResult("Validation errors.", "Student ID must be positive number." );
+                _logger.LogInformation("Fetching student with ID: {StudentId}", id);
 
+                if (id < 1)
+                {
+                    _logger.LogWarning("Invalid student ID: {StudentId}", id);
+                    return Result<StudentDetailsResponse>.ValidationErrorResult(
+                        "Validation errors occurred. Please review the details below.",
+                        new List<string> { string.Format(ResultMessages.Validation.PositiveNumber, "Student ID") });
+                }
 
-                var student = await _unitOfWork.Students.GetFirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted, "Enrollments,Enrollments.TrainingTrack,Enrollments.Payments");
-                    
+                var student = await _unitOfWork.Students.GetFirstOrDefaultAsync(
+                    s => s.Id == id && !s.IsDeleted,
+                    "Enrollments,Enrollments.TrainingTrack,Enrollments.Payments");
+
                 if (student == null)
-                    return Result<StudentDetailsResponse>.FailureResult("Student not found.", ".NotFound");
-              
+                {
+                    _logger.LogInformation("Student not found. ID: {StudentId}", id);
+                    return Result<StudentDetailsResponse>.NotFoundResult(
+                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Student"));
+                }
 
                 var response = new StudentDetailsResponse
                 {
@@ -104,7 +144,7 @@ namespace TrainingCenter.Application.Services.Implementations
                     IsActive = student.IsActive,
                     CreatedAt = student.CreatedAt,
                     UpdatedAt = student.UpdatedAt,
-                    EnrollmentCount = student.Enrollments?.Where(e=>e.Status == EnrollmentStatus.Active || e.Status == EnrollmentStatus.Completed).Count() ?? 0,
+                    EnrollmentCount = student.Enrollments?.Where(e => e.Status == EnrollmentStatus.Active || e.Status == EnrollmentStatus.Completed).Count() ?? 0,
                     Enrollments = student.Enrollments?.Select(e => new EnrollmentSummaryResponse
                     {
                         Id = e.Id,
@@ -115,30 +155,49 @@ namespace TrainingCenter.Application.Services.Implementations
                     }).ToList() ?? new List<EnrollmentSummaryResponse>()
                 };
 
-                return Result<StudentDetailsResponse>.SuccessResult(response, "Student retrieved successfully.");
-             
+                _logger.LogInformation("Successfully retrieved student. ID: {StudentId}", id);
+
+                return Result<StudentDetailsResponse>.SuccessResult(
+                    response,
+                    string.Format(ResultMessages.Success.ResourceRetrieved, "Student"));
             }
             catch (Exception ex)
             {
-                return Result<StudentDetailsResponse>.FailureResult("Error retrieving student.", ex.Message);
-               
+                _logger.LogError(ex, "An error occurred while retrieving student by ID: {StudentId}. Exception: {@Exception}", id, ex);
+                return Result<StudentDetailsResponse>.FailureResult(
+                    ResultMessages.ServerError.ProcessingError,
+                    ex.Message);
             }
         }
+
         public async Task<Result<StudentDetailsResponse>> CreateStudentAsync(CreateStudentRequest request)
         {
             try
             {
+                _logger.LogInformation("Creating new student. Request: {@Request}", new { request.Email, request.PhoneNumber });
+
                 var errors = UserValidation.Validate(request);
                 if (errors.Any())
-                    return Result<StudentDetailsResponse>.FailureResult("Validation errors.", errors);
+                {
+                    _logger.LogWarning("Validation failed for CreateStudentAsync. Errors: {@Errors}", errors);
+                    return Result<StudentDetailsResponse>.ValidationErrorResult(
+                        "Validation errors occurred. Please review the details below.",
+                        errors);
+                }
 
                 if (await _unitOfWork.Students.ExistsAsync(s => s.Email == request.Email))
-                    return Result<StudentDetailsResponse>.FailureResult("Validation Errors.", "Email already exists.");
-             
+                {
+                    _logger.LogWarning("Email already exists. Email: {Email}", request.Email);
+                    return Result<StudentDetailsResponse>.ConflictResult(
+                        ResultMessages.Conflict.DuplicateEmail);
+                }
 
                 if (await _unitOfWork.Students.ExistsAsync(s => s.PhoneNumber == request.PhoneNumber))
-                    return Result<StudentDetailsResponse>.FailureResult("Validation Errors.", "Phone already exists.");
-                
+                {
+                    _logger.LogWarning("Phone number already exists. Phone: {Phone}", request.PhoneNumber);
+                    return Result<StudentDetailsResponse>.ConflictResult(
+                        ResultMessages.Conflict.DuplicatePhoneNumber);
+                }
 
                 var student = new Student
                 {
@@ -164,38 +223,62 @@ namespace TrainingCenter.Application.Services.Implementations
                     Enrollments = new List<EnrollmentSummaryResponse>()
                 };
 
-                return Result<StudentDetailsResponse>.SuccessResult(response, "Student created successfully.");
-                
+                _logger.LogInformation("Successfully created student. ID: {StudentId}, Email: {Email}", student.Id, student.Email);
+
+                return Result<StudentDetailsResponse>.SuccessResult(
+                    response,
+                    string.Format(ResultMessages.Success.ResourceCreated, "Student"),
+                    201);
             }
             catch (Exception ex)
             {
-                return Result<StudentDetailsResponse>.FailureResult("Error creating student.", ex.Message);
-             
+                _logger.LogError(ex, "An error occurred while creating student. Exception: {@Exception}", ex);
+                return Result<StudentDetailsResponse>.FailureResult(
+                    ResultMessages.ServerError.DatabaseError,
+                    ex.Message);
             }
         }
+
         public async Task<Result<StudentResponse>> UpdateStudentAsync(int id, UpdateStudentRequest request)
         {
             try
             {
-                if (id < 1) return Result<StudentResponse>.FailureResult("Validation Errors.", "Student ID must be positive number.");
-            
+                _logger.LogInformation("Updating student. ID: {StudentId}", id);
+
+                if (id < 1)
+                {
+                    _logger.LogWarning("Invalid student ID: {StudentId}", id);
+                    return Result<StudentResponse>.ValidationErrorResult(
+                        "Validation errors occurred. Please review the details below.",
+                        new List<string> { string.Format(ResultMessages.Validation.PositiveNumber, "Student ID") });
+                }
+
                 var student = await _unitOfWork.Students.GetFirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted);
                 if (student == null)
-                    return Result<StudentResponse>.FailureResult("Student not found.", ".NotFound");
-            
+                {
+                    _logger.LogInformation("Student not found for update. ID: {StudentId}", id);
+                    return Result<StudentResponse>.NotFoundResult(
+                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Student"));
+                }
 
                 if (!string.IsNullOrWhiteSpace(request.Email) && request.Email != student.Email)
                 {
                     if (await _unitOfWork.Students.ExistsAsync(s => s.Email == request.Email && s.Id != id))
-                        return Result<StudentResponse>.FailureResult("Validation Errors.","Email already exists." );
-                  
+                    {
+                        _logger.LogWarning("Email already exists for another student. Email: {Email}", request.Email);
+                        return Result<StudentResponse>.ConflictResult(
+                            ResultMessages.Conflict.DuplicateEmail);
+                    }
                 }
 
                 if (!string.IsNullOrWhiteSpace(request.PhoneNumber) && request.PhoneNumber != student.PhoneNumber)
                 {
                     if (await _unitOfWork.Students.ExistsAsync(s => s.PhoneNumber == request.PhoneNumber && s.Id != id))
-                        return Result<StudentResponse>.FailureResult("Validation Errors.", "Phone number already exists.");
-                   
+                    {
+                        _logger.LogWarning("Phone number already exists for another student. Phone: {Phone}", request.PhoneNumber);
+                        return Result<StudentResponse>.ConflictResult(
+                            ResultMessages.Conflict.DuplicatePhoneNumber);
+                    }
                 }
 
                 if (!string.IsNullOrWhiteSpace(request.FName))
@@ -222,38 +305,60 @@ namespace TrainingCenter.Application.Services.Implementations
                     UpdatedAt = student.UpdatedAt
                 };
 
-                return Result<StudentResponse>.SuccessResult(response, "Student updated successfully.");
-               
+                _logger.LogInformation("Successfully updated student. ID: {StudentId}", id);
+
+                return Result<StudentResponse>.SuccessResult(
+                    response,
+                    string.Format(ResultMessages.Success.ResourceUpdated, "Student"));
             }
             catch (Exception ex)
             {
-                return Result<StudentResponse>.FailureResult("Error updating student.", ex.Message);
-              
+                _logger.LogError(ex, "An error occurred while updating student. ID: {StudentId}, Exception: {@Exception}", id, ex);
+                return Result<StudentResponse>.FailureResult(
+                    ResultMessages.ServerError.ProcessingError,
+                    ex.Message);
             }
         }
+
         public async Task<Result<string>> DeleteStudentAsync(int id)
         {
             try
             {
-                if (id < 1) return Result<string>.FailureResult("Validation Errors.","Student ID must be positive number." );
-            
+                _logger.LogInformation("Deleting student. ID: {StudentId}", id);
+
+                if (id < 1)
+                {
+                    _logger.LogWarning("Invalid student ID: {StudentId}", id);
+                    return Result<string>.ValidationErrorResult(
+                        "Validation errors occurred. Please review the details below.",
+                        new List<string> { string.Format(ResultMessages.Validation.PositiveNumber, "Student ID") });
+                }
+
                 var student = await _unitOfWork.Students.GetFirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted);
                 if (student == null)
-                    return Result<string>.FailureResult("Student not found.", ".NotFound");
-            
+                {
+                    _logger.LogInformation("Student not found for deletion. ID: {StudentId}", id);
+                    return Result<string>.NotFoundResult(
+                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Student"));
+                }
 
                 student.IsActive = false;
                 student.IsDeleted = true;
                 student.DeletedAt = DateTime.UtcNow;
                 await _unitOfWork.SaveAsync();
 
-                return Result<string>.SuccessResult($"Student {id} has been soft deleted.", "Student deleted successfully.");
-          
+                _logger.LogInformation("Successfully deleted student. ID: {StudentId}", id);
+
+                return Result<string>.SuccessResult(
+                    string.Empty,
+                    string.Format(ResultMessages.Success.ResourceDeleted, "Student"));
             }
             catch (Exception ex)
             {
-                return Result<string>.FailureResult("Error deleting student.", ex.Message);
-             
+                _logger.LogError(ex, "An error occurred while deleting student. ID: {StudentId}, Exception: {@Exception}", id, ex);
+                return Result<string>.FailureResult(
+                    ResultMessages.ServerError.ProcessingError,
+                    ex.Message);
             }
         }
     }

@@ -10,6 +10,7 @@ using TrainingCenter.Application.Interfaces.Persistence;
 using TrainingCenter.Application.Interfaces.Security;
 using TrainingCenter.Application.Services.Implementations;
 using TrainingCenter.Application.Services.Interfaces;
+using TrainingCenter.API.Middleware;
 using TrainingCenter.Infrastructure.Data;
 using TrainingCenter.Infrastructure.Security;
 using TrainingCenter.Infrastructure.UnitOfWork;
@@ -87,7 +88,7 @@ namespace TrainingCenter.API
                     options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
                 });
 
-            // ---------- Problem Details (RFC 7807) for unhandled errors ----------
+            // ---------- Problem Details (RFC 7807) ----------
             builder.Services.AddProblemDetails();
 
             // ---------- Health Checks ----------
@@ -98,52 +99,16 @@ namespace TrainingCenter.API
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
-            // ---------- Logging ----------
+            // ---------- Logging Configuration ----------
             builder.Logging.ClearProviders();
             builder.Logging.AddConsole();
             builder.Logging.AddDebug();
+            builder.Logging.SetMinimumLevel(LogLevel.Information);
 
             var app = builder.Build();
 
             // ---------- Apply Migrations on Startup ----------
             await ApplyMigrationsAsync(app);
-
-            // ---------- Global Exception Handling ----------
-            app.UseExceptionHandler(exceptionHandlerApp =>
-            {
-                exceptionHandlerApp.Run(async context =>
-                {
-                    var exceptionFeature = context.Features.Get<IExceptionHandlerFeature>();
-                    var exception = exceptionFeature?.Error;
-
-                    var logger = context.RequestServices
-                        .GetRequiredService<ILogger<Program>>();
-
-                    logger.LogError(exception, "Unhandled exception for {Method} {Path}",
-                        context.Request.Method, context.Request.Path);
-
-                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                    context.Response.ContentType = "application/json";
-
-                    var response = new 
-                    {
-                        Success = false,
-                        Message = "An unexpected error occurred.",
-                        ErrorCode = 500,
-                        Errors = app.Environment.IsDevelopment() && exception != null
-                            ? new List<string> { exception.Message }
-                            : new List<string>()
-                    };
-
-                    var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
-                    {
-                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                        Converters = { new JsonStringEnumConverter() }
-                    });
-
-                    await context.Response.WriteAsync(json);
-                });
-            });
 
             // ---------- HTTP Pipeline ----------
             if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
@@ -151,6 +116,9 @@ namespace TrainingCenter.API
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
+
+            // ---------- Global Exception Handling Middleware ----------
+            app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
 
             app.UseHttpsRedirection();
             app.UseAuthentication();
