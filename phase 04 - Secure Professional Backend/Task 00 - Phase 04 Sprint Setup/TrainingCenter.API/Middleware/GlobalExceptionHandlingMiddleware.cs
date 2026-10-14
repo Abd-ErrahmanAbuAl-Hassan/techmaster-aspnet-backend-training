@@ -1,13 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using TrainingCenter.Application.Helpers;
 
 namespace TrainingCenter.API.Middleware
 {
-    /// <summary>
-    /// Global exception handling middleware for capturing and formatting all unhandled exceptions.
-    /// Converts exceptions into standardized Result pattern responses with appropriate status codes.
-    /// </summary>
     public class GlobalExceptionHandlingMiddleware
     {
         private readonly RequestDelegate _next;
@@ -33,8 +30,7 @@ namespace TrainingCenter.API.Middleware
 
         private Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
-            _logger.LogError(exception, "Unhandled exception occurred for {Method} {Path}. Exception: {@Exception}",
-                context.Request.Method, context.Request.Path, exception);
+            _logger.LogServiceError(context.Request.Path,context.Request.Method, exception);
 
             context.Response.ContentType = "application/json";
 
@@ -63,9 +59,6 @@ namespace TrainingCenter.API.Middleware
             return context.Response.WriteAsync(json);
         }
 
-        /// <summary>
-        /// Maps exception types to appropriate HTTP status codes, messages, and error details.
-        /// </summary>
         private (int StatusCode, string Message, List<string> Errors) MapExceptionToResponse(Exception exception)
         {
             return exception switch

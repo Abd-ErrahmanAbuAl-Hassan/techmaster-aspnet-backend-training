@@ -4,7 +4,7 @@ namespace TrainingCenter.Application.Helpers
 {
     public static class LoggerExtensions
     {
-        public static void LogServiceCall(this ILogger logger, string serviceName, string methodName, object parameters = null)
+        public static void LogServiceCall(this ILogger logger, string serviceName, string methodName, params object?[] parameters)
         {
             logger.LogInformation("Service call: {ServiceName}.{MethodName}. Parameters: {@Parameters}",
                 serviceName, methodName, parameters);
@@ -22,13 +22,13 @@ namespace TrainingCenter.Application.Helpers
                 context, errors);
         }
 
-        public static void LogResourceNotFound(this ILogger logger, string resourceType, object identifier)
+        public static void LogResourceNotFound(this ILogger logger, string resourceType, object? identifier = null)
         {
             logger.LogInformation("Resource not found. Type: {ResourceType}, Identifier: {@Identifier}",
                 resourceType, identifier);
         }
 
-        public static void LogBusinessLogicError(this ILogger logger, string message, Exception ex = null)
+        public static void LogBusinessLogicError(this ILogger logger, string message, Exception ex = null!)
         {
             if (ex != null)
                 logger.LogWarning(ex, "Business logic error: {Message}. Exception: {@Exception}", message, ex);

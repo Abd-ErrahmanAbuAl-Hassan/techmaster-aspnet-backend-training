@@ -11,10 +11,6 @@ using TrainingCenter.Domain.Results;
 
 namespace TrainingCenter.Application.Services.Implementations
 {
-    /// <summary>
-    /// Service for generating business reports and analytics including dashboard summaries,
-    /// revenue tracking, capacity management, and instructor workload analysis.
-    /// </summary>
     public class ReportService : IReportService
     {
         private readonly IUnitOfWork _unitOfWork;
@@ -30,8 +26,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Generating dashboard summary report.");
-
+                _logger.LogServiceCall("ReportService", "GetDashboardSummaryAsync", null!);
                 var totalStudents = await _unitOfWork.Students.CountAsync(s => s.IsActive);
                 var activeEnrollments = await _unitOfWork.Enrollments.CountAsync(e => e.Status == EnrollmentStatus.Active);
                 var completedEnrollments = await _unitOfWork.Enrollments.CountAsync(e => e.Status == EnrollmentStatus.Completed);
@@ -79,7 +74,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while generating dashboard summary. Exception: {@Exception}", ex);
+                _logger.LogServiceError("ReportService", "GetDashboardSummaryAsync", ex);
                 return Result<ReportDashboardResponse>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -90,9 +85,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching unpaid enrollments. Page: {PageNumber}, Size: {PageSize}",
-                    pageNumber, pageSize);
-
+                _logger.LogServiceCall("ReportService", "GetUnpaidEnrollmentsAsync", new { pageNumber, pageSize });
                 var errors = new List<string>();
                 if (pageNumber < 1)
                     errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Page number"));
@@ -103,7 +96,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetUnpaidEnrollmentsAsync. Errors: {@Errors}", errors);
+                    _logger.LogValidationError("GetUnpaidEnrollmentsAsync. ", errors);
                     return Result<PagedResult<ReportUnpaidEnrollmentResponse>>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         errors);
@@ -125,7 +118,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!unpaidEnrollments.Any())
                 {
-                    _logger.LogInformation("No unpaid enrollments found.");
+                    _logger.LogResourceNotFound("unpaid enrollments.", new { pageNumber, pageSize });
                     return Result<PagedResult<ReportUnpaidEnrollmentResponse>>.NotFoundResult(
                         ResultMessages.NotFound.RecordNotFound);
                 }
@@ -150,7 +143,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving unpaid enrollments. Exception: {@Exception}", ex);
+                _logger.LogServiceError("ReportService", "GetUnpaidEnrollmentsAsync", ex);
                 return Result<PagedResult<ReportUnpaidEnrollmentResponse>>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -161,9 +154,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching track capacity report. Page: {PageNumber}, Size: {PageSize}",
-                    pageNumber, pageSize);
-
+                _logger.LogServiceCall("ReportService", "GetTrackCapacityAsync", new { pageNumber, pageSize });
                 var errors = new List<string>();
                 if (pageNumber < 1)
                     errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Page number"));
@@ -174,7 +165,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetTrackCapacityAsync. Errors: {@Errors}", errors);
+                    _logger.LogValidationError("GetTrackCapacityAsync. ", errors);
                     return Result<PagedResult<ReportTrackCapacityResponse>>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         errors);
@@ -192,7 +183,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!capacityReports.Any())
                 {
-                    _logger.LogInformation("No tracks found for capacity report.");
+                    _logger.LogResourceNotFound("tracks", new { pageNumber, pageSize });
                     return Result<PagedResult<ReportTrackCapacityResponse>>.NotFoundResult(
                         ResultMessages.NotFound.RecordNotFound);
                 }
@@ -217,7 +208,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving track capacity report. Exception: {@Exception}", ex);
+                _logger.LogServiceError("ReportService", "GetTrackCapacityAsync", ex);
                 return Result<PagedResult<ReportTrackCapacityResponse>>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -228,9 +219,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching tracks with available seats. Page: {PageNumber}, Size: {PageSize}",
-                    pageNumber, pageSize);
-
+                _logger.LogServiceCall("ReportService", "GetTracksWithAvailableSeatsAsync", new { pageNumber, pageSize });
                 var errors = new List<string>();
                 if (pageNumber < 1)
                     errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Page number"));
@@ -241,7 +230,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetTracksWithAvailableSeatsAsync. Errors: {@Errors}", errors);
+                    _logger.LogValidationError("GetTracksWithAvailableSeatsAsync.", errors);
                     return Result<PagedResult<ReportTrackAvailableSeatsResponse>>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         errors);
@@ -266,7 +255,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!availableSeats.Any())
                 {
-                    _logger.LogInformation("No tracks with available seats found.");
+                    _logger.LogResourceNotFound("tracks", new { pageNumber, pageSize });
                     return Result<PagedResult<ReportTrackAvailableSeatsResponse>>.NotFoundResult(
                         "No tracks with available seats are available for enrollment.");
                 }
@@ -291,7 +280,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving tracks with available seats. Exception: {@Exception}", ex);
+                _logger.LogServiceError("ReportService", "GetTracksWithAvailableSeatsAsync", ex);
                 return Result<PagedResult<ReportTrackAvailableSeatsResponse>>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -302,8 +291,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Generating revenue summary report.");
-
+                _logger.LogServiceCall("ReportService", "GetRevenueSummaryAsync", null!);
                 var collected = (await _unitOfWork.Payments
                     .GetAllAsync(p => p.PaymentStatus == PaymentStatus.Paid || p.PaymentStatus == PaymentStatus.PartiallyPaid))
                     .Sum(p => p.Amount);
@@ -356,7 +344,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while generating revenue summary. Exception: {@Exception}", ex);
+                _logger.LogServiceError("ReportService", "GetRevenueSummaryAsync", ex);
                 return Result<ReportRevenueSummaryResponse>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -367,8 +355,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching revenue by track report. Page: {PageNumber}, Size: {PageSize}",
-                    pageNumber, pageSize);
+                _logger.LogServiceCall("ReportService", "GetRevenueByTrackAsync", new { pageNumber, pageSize });
 
                 var errors = new List<string>();
                 if (pageNumber < 1)
@@ -380,7 +367,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetRevenueByTrackAsync. Errors: {@Errors}", errors);
+                    _logger.LogValidationError("GetRevenueByTrackAsync. ", errors);
                     return Result<PagedResult<ReportRevenueByTrackResponse>>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         errors);
@@ -415,7 +402,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!revenueByTrack.Any())
                 {
-                    _logger.LogInformation("No tracks found for revenue report.");
+                    _logger.LogResourceNotFound("tracks for revenue report.", new { pageNumber, pageSize });
                     return Result<PagedResult<ReportRevenueByTrackResponse>>.NotFoundResult(
                         ResultMessages.NotFound.RecordNotFound);
                 }
@@ -440,7 +427,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving revenue by track report. Exception: {@Exception}", ex);
+                _logger.LogServiceError("ReportService", "GetRevenueByTrackAsync", ex);
                 return Result<PagedResult<ReportRevenueByTrackResponse>>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -451,11 +438,10 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching top {TopCount} tracks by enrollment.", topCount);
-
+                _logger.LogServiceCall("ReportService", "GetTopTrackAsync", topCount);
                 if (topCount < 1)
                 {
-                    _logger.LogWarning("Invalid top count: {TopCount}", topCount);
+                    _logger.LogValidationError("top count", [topCount.ToString()]);
                     return Result<List<TrackMiniDetailsResponse>>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         new List<string> { string.Format(ResultMessages.Validation.PositiveNumber, "Top count") });
@@ -475,7 +461,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!tracks.Any())
                 {
-                    _logger.LogInformation("No tracks found.");
+                    _logger.LogResourceNotFound("tracks.");
                     return Result<List<TrackMiniDetailsResponse>>.NotFoundResult(
                         ResultMessages.NotFound.RecordNotFound);
                 }
@@ -488,7 +474,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving top tracks. Exception: {@Exception}", ex);
+                _logger.LogServiceError("ReportService", "GetTopTrackAsync", ex);
                 return Result<List<TrackMiniDetailsResponse>>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -499,8 +485,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Generating instructor workload report.");
-
+                _logger.LogServiceCall("ReportService", "GetInstructorWorkLoadAsync", null!);
                 var instructors = (await _unitOfWork.Instructors
                         .GetAsync(selector: i => new InstructorWorkLoadResponse
                         {
@@ -515,7 +500,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!instructors.Any())
                 {
-                    _logger.LogInformation("No instructors found.");
+                    _logger.LogResourceNotFound("instructors.");
                     return Result<List<InstructorWorkLoadResponse>>.NotFoundResult(
                         ResultMessages.NotFound.RecordNotFound);
                 }
@@ -528,7 +513,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while generating instructor workload report. Exception: {@Exception}", ex);
+                _logger.LogServiceError("ReportService", "GetInstructorWorkLoadAsync", ex);
                 return Result<List<InstructorWorkLoadResponse>>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -539,8 +524,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching students without payments.");
-
+                _logger.LogServiceCall("ReportService", "GetStudentsWithoutPaymentsAsync", null!);
                 var students = (await _unitOfWork.Students
                              .GetAsync(s => !s.IsDeleted && s.Enrollments.Any(e => e.Status == EnrollmentStatus.Draft
                                  && !e.Payments.Any(p => p.PaymentStatus == PaymentStatus.Paid
@@ -556,7 +540,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!students.Any())
                 {
-                    _logger.LogInformation("No students without payments found.");
+                    _logger.LogResourceNotFound("students without payments.");
                     return Result<List<StudentsWithoutPayment>>.NotFoundResult(
                         ResultMessages.NotFound.RecordNotFound);
                 }
@@ -569,7 +553,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving students without payments. Exception: {@Exception}", ex);
+                _logger.LogServiceError("ReportService", "GetStudentsWithoutPaymentsAsync", ex);
                 return Result<List<StudentsWithoutPayment>>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);

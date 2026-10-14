@@ -1,8 +1,8 @@
 # 🛡️ Phase 04 — Task 05: Validation, Errors & Logging
 
-The Training Center API protects itself with **layered validation**, a **single error strategy** (expected failures are returned as a `Result`, unexpected ones hit a global exception handler), and **logging** that never records secrets.
+The Training Center API protects itself with **layered validation**, a **single error strategy** (expected failures are returned as a typed `Result`; unexpected ones reach a global exception middleware), and **structured logging** of security- and business-relevant events that never records passwords or tokens.
 
-This README documents what the code does today. Anything that isn't finished yet is stated plainly in [Open Items](#-open-items-against-the-task-05-spec) rather than implied.
+This README documents what the code does today. Anything not finished is stated plainly in [Open Items](#-open-items-against-the-task-05-spec) rather than implied.
 
 ---
 
@@ -11,7 +11,7 @@ This README documents what the code does today. Anything that isn't finished yet
 - [Validation Strategy](#-validation-strategy)
 - [Validation & Business Rule Bank](#-validation--business-rule-bank)
 - [Error Strategy](#-error-strategy)
-- [Global Exception Handler](#-global-exception-handler)
+- [Global Exception Middleware](#-global-exception-middleware)
 - [Error Handling Test Cases](#-error-handling-test-cases)
 - [Logging](#-logging)
 - [Open Items Against the Task 05 Spec](#-open-items-against-the-task-05-spec)
@@ -26,17 +26,17 @@ A request passes through four checkpoints, from cheapest to most specific. Each 
 | # | Checkpoint | Where | What it catches |
 |---|-----------|-------|-----------------|
 | 1 | **Model binding** | `[ApiController]` + DataAnnotations on request DTOs; `ModelState` checks in `AuthController` | Malformed JSON, missing required properties |
-| 2 | **Access control** | `[Authorize(Roles = …)]` and the ownership guards in `API/Extensions/AccessControlExtensions` | Wrong role (`403`), not the owner of the record (`403`), no token (`401`) |
-| 3 | **Request validators** | Static classes in `Application/Validations` (`AuthValidation`, `UserValidation`, `TrackValidation`) | Required fields, formats, URL and date checks — returned as a readable list of messages |
+| 2 | **Access control** | `[Authorize(Roles = …)]` and the ownership guards in `API/Extensions/AccessControlExtensions` | No token (`401`), wrong role (`403`), not the owner of the record (`403`) |
+| 3 | **Request validators** | Static classes in `Application/Validations` (`AuthValidation`, `UserValidation`, `TrackValidation`) | Required fields, formats, URL and date checks — returned as a readable list |
 | 4 | **Business rules** | Services in `Application/Services/Implementations` | Uniqueness, capacity, duplicates, state transitions, payment limits, existence of referenced records |
 
-Controllers also reject non-positive ids and invalid paging (`page ≥ 1`, `pageSize` 1–50) before a service is called.
+Controllers also reject non-positive ids and invalid paging (`pageNumber ≥ 1`, `pageSize` 1–50) before a service is called. All user-facing messages come from one catalog, **`Application/Helpers/ResultMessages`** (`Success`, `Validation`, `NotFound`, `Conflict`, `Unauthorized`, `ServerError`), so the same situation always produces the same wording.
 
 ---
 
 ## 📋 Validation & Business Rule Bank
 
-**38 rules**, grouped by feature. *Type* uses the task's categories: **V**alidation, **B**usiness rule, **R**ole, **O**wnership, **D**ate/**A**mount.
+**49 rules**, grouped by feature. *Type* uses the task's categories: **V**alidation, **B**usiness rule, **R**ole, **O**wnership, **D**ate/**A**mount.
 
 ### Register / Auth
 
@@ -52,66 +52,70 @@ Controllers also reject non-positive ids and invalid paging (`page ≥ 1`, `page
 | 8 | Inactive users cannot log in | B | `AuthService.LoginAsync` |
 | 9 | Wrong email and wrong password return the **same** generic `401` (no account enumeration) | B | `AuthService.LoginAsync` |
 | 10 | Change password: old password required and verified, new ≠ old, confirmation must match | V/B | `AuthService.ChangePasswordAsync` |
-| 11 | A refresh token must exist, be unexpired, and not be revoked | B | `AuthService.RefreshTokenAsync` |
+| 11 | A refresh token must exist, be unexpired, not be revoked, and belong to an active user | B | `AuthService.RefreshTokenAsync` |
+| 12 | Logout requires a refresh token that belongs to the caller | O | `AuthService.LogoutAsync` |
 
 ### Tracks
 
 | # | Rule | Type | Enforced in |
 |---|------|------|-------------|
-| 12 | Title and description are required | V | `TrainingTrackService.CreateTrackAsync` |
-| 13 | Capacity must be greater than zero (create **and** update) | V | `TrainingTrackService` |
-| 14 | Price must be greater than zero (create and update) | D/A | `TrainingTrackService` |
-| 15 | Start date must be before end date (update requires both dates or neither) | D/A | `TrainingTrackService` |
-| 16 | The instructor must exist | B | `TrainingTrackService.CreateTrackAsync` |
-| 17 | Track level must be a defined value | V | `TrainingTrackService` |
-| 18 | Capacity cannot be lowered below the number of currently enrolled students | B | `TrainingTrackService.UpdateTrackAsync` |
-| 19 | Track code must be unique (regenerated on collision) | B | `TrainingTrackService.CreateTrackAsync` |
-| 20 | A track with active enrollments cannot be deleted | B | `TrainingTrackService.DeleteTrackAsync` |
-| 21 | Only an admin may create or delete tracks; an instructor may update **only a track assigned to them** | R/O | `TracksController` + `EnsureTrackAccessAsync` |
-| 22 | Assigning an instructor: the instructor must exist, be active, and not already be assigned | B | `TrainingTrackService.AssignInstructorToTrackAsync` |
+| 13 | Title and description are required | V | `TrainingTrackService.CreateTrackAsync` |
+| 14 | Capacity must be greater than zero (create **and** update) | V | `TrainingTrackService` |
+| 15 | Price must be greater than zero (create and update) | D/A | `TrainingTrackService` |
+| 16 | Start date must be before end date (update requires both dates or neither) | D/A | `TrainingTrackService` |
+| 17 | The instructor must exist | B | `TrainingTrackService.CreateTrackAsync` |
+| 18 | Track level must be a defined value | V | `TrainingTrackService` |
+| 19 | Capacity cannot be lowered below the number of currently enrolled students | B | `TrainingTrackService.UpdateTrackAsync` |
+| 20 | Track code must be unique (regenerated on collision) | B | `TrainingTrackService.CreateTrackAsync` |
+| 21 | A track with active enrollments cannot be deleted | B | `TrainingTrackService.DeleteTrackAsync` |
+| 22 | Only an admin may create or delete tracks; an instructor may update **only a track assigned to them** | R/O | `TracksController` + `EnsureTrackAccessAsync` |
+| 23 | Assigning an instructor: the instructor must exist, be active, and not already be assigned | B | `TrainingTrackService.AssignInstructorToTrackAsync` |
 
 ### Enrollments
 
 | # | Rule | Type | Enforced in |
 |---|------|------|-------------|
-| 23 | The student and the track must exist | B | `EnrollmentService.CreateEnrollmentAsync` |
-| 24 | The track must be open — a closed track accepts no enrollments | B | `EnrollmentService.CreateEnrollmentAsync` |
-| 25 | An inactive or deleted student cannot be enrolled (admin-only override) | B/R | `EnrollmentService` + `EnrollmentsController` |
-| 26 | No duplicate enrollment — a student can't have two non-cancelled enrollments in the same track | B | `EnrollmentService.CreateEnrollmentAsync` |
-| 27 | Track capacity must not be exceeded ⚠️ *see [open items](#-open-items-against-the-task-05-spec)* | B | `EnrollmentService.CreateEnrollmentAsync` |
-| 28 | Status changes follow an allowed-transition table (anything else is rejected) | B | `EnrollmentService.IsValidStatusTransition` |
-| 29 | A student can enroll **only themselves**; only an admin can change an enrollment's status | O/R | `EnrollmentsController` |
+| 24 | The student and the track must exist | B | `EnrollmentService.CreateEnrollmentAsync` |
+| 25 | The track must be open — a closed track accepts no enrollments | B | `EnrollmentService.CreateEnrollmentAsync` |
+| 26 | An inactive or deleted student cannot be enrolled (admin-only override) | B/R | `EnrollmentService` + `EnrollmentsController` |
+| 27 | No duplicate enrollment — a student can't have two non-cancelled enrollments in the same track | B | `EnrollmentService.CreateEnrollmentAsync` |
+| 28 | Track capacity must not be exceeded (active + completed enrollments of **that track** are counted) | B | `EnrollmentService.CreateEnrollmentAsync` |
+| 29 | Status changes follow an allowed-transition table; anything else is rejected | B | `EnrollmentService.IsValidStatusTransition` |
+| 30 | A student can enroll **only themselves**; only an admin can change an enrollment's status | O/R | `EnrollmentsController` |
 
 ### Payments
 
 | # | Rule | Type | Enforced in |
 |---|------|------|-------------|
-| 30 | Amount must be greater than zero | D/A | `PaymentService.CreatePaymentAsync` |
-| 31 | The payment method must be a defined value | V | `PaymentService.CreatePaymentAsync` |
-| 32 | The enrollment must exist and must not be cancelled | B | `PaymentService.CreatePaymentAsync` |
-| 33 | An enrollment that is already fully paid cannot be paid again | B | `PaymentService.CreatePaymentAsync` |
-| 34 | The amount cannot exceed the remaining balance (overpayment is rejected) | D/A | `PaymentService.CreatePaymentAsync` |
-| 35 | Payment status must be a defined value and changes follow an allowed-transition table | V/B | `PaymentService.UpdatePaymentStatusAsync` |
-| 36 | Date-range filter: start and end dates must be given together, start ≤ end | D/A | `PaymentService.GetPaymentsAsync` |
-| 37 | Only an admin can create payments or change payment status; a student sees only payments of their own enrollment | R/O | `PaymentsController` |
+| 31 | Amount must be greater than zero | D/A | `PaymentService.CreatePaymentAsync` |
+| 32 | The payment method must be a defined value | V | `PaymentService.CreatePaymentAsync` |
+| 33 | The enrollment must exist | B | `PaymentService.CreatePaymentAsync` |
+| 34 | The payer must own the enrollment (`enrollment.StudentId == request.UserId`), otherwise `403` | O | `PaymentService.CreatePaymentAsync` |
+| 35 | A cancelled enrollment cannot be paid | B | `PaymentService.CreatePaymentAsync` |
+| 36 | An enrollment that is already fully paid cannot be paid again | B | `PaymentService.CreatePaymentAsync` |
+| 37 | The amount cannot exceed the remaining balance (overpayment is rejected) | D/A | `PaymentService.CreatePaymentAsync` |
+| 38 | Payment status must be a defined value and changes follow an allowed-transition table | V/B | `PaymentService.UpdatePaymentStatusAsync` |
+| 39 | Date-range filter: start and end dates must be given together, start ≤ end | D/A | `PaymentService.GetPaymentsAsync` |
+| 40 | Only an admin can change payment status; a student sees only payments of their own enrollment | R/O | `PaymentsController` |
+| 41 | The payment and the resulting enrollment activation commit **atomically** (one transaction, wrapped in the EF execution strategy) | B | `PaymentService.CreatePaymentAsync` |
 
 ### Sessions
 
 | # | Rule | Type | Enforced in |
 |---|------|------|-------------|
-| 38 | Title, description and meeting link are required; the link must be an absolute `http`/`https` URL with a host | V | `TrackValidation.ValidateTrackSession` |
-| 39 | The session date cannot be in the past | D/A | `TrackValidation.ValidateTrackSession` |
-| 40 | The track must belong to the instructor creating or updating the session | O | `TrainingTrackService.CreateTrackSessionAsync` / `UpdateTrackSessionAsync` |
-| 41 | The track and the instructor must both be active | B | `TrainingTrackService` (sessions) |
+| 42 | Title, description and meeting link are required; the link must be an absolute `http`/`https` URL with a host | V | `TrackValidation.ValidateTrackSession` |
+| 43 | The session date cannot be in the past | D/A | `TrackValidation.ValidateTrackSession` |
+| 44 | The track must belong to the instructor creating or updating the session | O | `TrainingTrackService.CreateTrackSessionAsync` / `UpdateTrackSessionAsync` |
+| 45 | The track and the instructor must both be active | B | `TrainingTrackService` (sessions) |
 
 ### Profile & Ownership
 
 | # | Rule | Type | Enforced in |
 |---|------|------|-------------|
-| 42 | A student can update only allowed fields: `UpdateStudentRequest` has **no role property**, and `isActive` is ignored for non-admins | V/R | `UpdateStudentRequest` + `StudentsController.UpdateStudent` |
-| 43 | A student can read, update or delete **only their own** profile (another student's id → `403`) | O | `StudentsController` |
-| 44 | Student and instructor email and phone must be unique (create and update) | B | `StudentService`, `InstructorService` |
-| 45 | Paging must be valid: `pageNumber ≥ 1`, `pageSize` between 1 and 50 | V | Services + controllers |
+| 46 | A student can update only allowed fields: `UpdateStudentRequest` has **no role property**, and `isActive` is ignored for non-admins | V/R | `UpdateStudentRequest` + `StudentsController.UpdateStudent` |
+| 47 | A student can read, update or delete **only their own** profile (another student's id → `403`) | O | `StudentsController` |
+| 48 | Student and instructor email and phone must be unique (create and update) | B | `StudentService`, `InstructorService` |
+| 49 | Paging must be valid: `pageNumber ≥ 1`, `pageSize` between 1 and 50 | V | Services + controllers |
 
 ---
 
@@ -121,74 +125,93 @@ Controllers also reject non-positive ids and invalid paging (`page ≥ 1`, `page
 
 | Kind of failure | How it is handled | Client sees |
 |-----------------|-------------------|-------------|
-| **Expected** — validation, business-rule, not found, conflict | The service returns `Result.FailureResult(message, errors, statusCode)`. No exception is thrown for control flow | The standard JSON body and the matching HTTP status |
+| **Expected** — validation, business rule, not found, conflict, auth | The service returns a typed result: `ValidationErrorResult`, `NotFoundResult`, `ConflictResult`, `UnauthorizedResult` or `ForbiddenResult`, with a message from `ResultMessages`. No exception is used for control flow | The standard JSON body and the matching HTTP status |
 | **Result → HTTP** | One helper, `FailureResponse`, maps `400 / 401 / 403 / 404 / 409` and falls back to `500` | — |
 | **No / invalid / expired token** | JWT authentication middleware | `401` |
 | **Wrong role** | `[Authorize(Roles = …)]` | `403` |
-| **Not the owner of the record** | Ownership guards (`AccessControlExtensions`) | `403` with `{ "success": false, "message": "Access denied.", … }` |
+| **Not the owner of the record** | Ownership guards (`AccessControlExtensions`) or the service (`ForbiddenResult`) | `403` |
 | **Malformed body / failed model binding** | `[ApiController]` automatic validation | `400` |
-| **Unexpected exception** | The global exception handler (below) | Generic JSON `500` |
+| **Unexpected exception** | Logged by the service that caught it (`LogError`); anything that escapes reaches the global middleware | `500` (or the mapped status — see below) |
 
 **The standard body** (same wrapper for success and failure):
 
 ```json
 {
   "success": false,
-  "message": "Validation errors",
+  "message": "Validation errors occurred. Please review the details below.",
   "errors": [ "Email is required.", "Password and confirm password do not match." ],
   "statusCode": 400
 }
 ```
 
-**Safe by design:** the global handler never returns a stack trace or `ToString()` of an exception; the exception message is included **only in Development**; login failures return one generic message regardless of whether the email or the password was wrong.
+**What is never returned:** a stack trace, or `exception.ToString()`. Login failures return one generic message whether the email or the password was wrong.
 
 ---
 
-## 🧱 Global Exception Handler
+## 🧱 Global Exception Middleware
 
-Registered in `TrainingCenter.API/Program.cs`, ahead of the rest of the pipeline, using ASP.NET Core's built-in `UseExceptionHandler`:
+`TrainingCenter.API/Middleware/GlobalExceptionHandlingMiddleware.cs`, registered in `Program.cs` after Swagger and **before** HTTPS redirection, authentication and routing — so it wraps everything that follows:
 
 ```csharp
-app.UseExceptionHandler(exceptionHandlerApp =>
-{
-    exceptionHandlerApp.Run(async context =>
-    {
-        var exceptionFeature = context.Features.Get<IExceptionHandlerFeature>();
-        var exception = exceptionFeature?.Error;
-
-        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-
-        logger.LogError(exception, "Unhandled exception for {Method} {Path}",
-            context.Request.Method, context.Request.Path);
-
-        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-        context.Response.ContentType = "application/json";
-
-        var response = new
-        {
-            Success = false,
-            Message = "An unexpected error occurred.",
-            ErrorCode = 500,
-            Errors = app.Environment.IsDevelopment() && exception != null
-                ? new List<string> { exception.Message }
-                : new List<string>()
-        };
-
-        // …serialized as camelCase JSON and written to the response
-    });
-});
+// Program.cs
+app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
 ```
 
-What it does against the spec's checklist:
+```csharp
+public async Task InvokeAsync(HttpContext context)
+{
+    try
+    {
+        await _next(context);
+    }
+    catch (Exception exception)
+    {
+        await HandleExceptionAsync(context, exception);
+    }
+}
+
+private Task HandleExceptionAsync(HttpContext context, Exception exception)
+{
+    _logger.LogError(exception, "Unhandled exception occurred for {Method} {Path}. ...",
+        context.Request.Method, context.Request.Path, exception);
+
+    context.Response.ContentType = "application/json";
+    var (statusCode, message, errors) = MapExceptionToResponse(exception);
+    context.Response.StatusCode = statusCode;
+
+    var response = new { success = false, message, statusCode, errors, timestamp = DateTime.UtcNow };
+    // …serialized as camelCase JSON and written to the response
+}
+```
+
+**Exception → response mapping**
+
+| Exception | Status | Message |
+|-----------|--------|---------|
+| `ArgumentNullException` | `400` | Invalid request: a required argument was null |
+| `ArgumentException` | `400` | Invalid request: an argument validation failed |
+| `InvalidOperationException` | `400` | The requested operation cannot be completed in the current state |
+| `KeyNotFoundException` | `404` | The requested resource was not found |
+| `UnauthorizedAccessException` | `403` | Access denied |
+| `TimeoutException` | `408` | The request took too long to complete |
+| `DbUpdateConcurrencyException` | `409` | Concurrency conflict: the record was modified by another user |
+| `DbUpdateException` | `409` | A database error occurred |
+| anything else | `500` | An unexpected server error occurred |
+
+**Against the spec's checklist**
 
 | Middleware must… | |
 |------------------|---|
 | Catch unhandled exceptions | ✅ |
 | Log the exception internally | ✅ `LogError` with the exception, HTTP method and path |
-| Return a safe API response | ✅ generic message, empty `errors` outside Development |
-| Use `500` for unexpected errors | ✅ |
-| Never expose a raw stack trace in production | ✅ only `exception.Message`, and only in Development |
-| Not log sensitive user secrets | ✅ it logs the exception, method and path only — never the request body, headers or tokens |
+| Return an API response in the standard shape | ✅ `success`, `message`, `statusCode`, `errors` (+ `timestamp`) |
+| Use `500` for unexpected errors | ✅ the catch-all arm; known exception types map to more specific codes |
+| Never expose a raw stack trace | ✅ stack traces are never written to the response |
+| Not log sensitive user secrets | ✅ it logs the exception, method and path — never request bodies, headers or tokens |
 
 ---
 
@@ -196,35 +219,32 @@ What it does against the spec's checklist:
 
 | Case | Expected | Status in this codebase |
 |------|----------|--------------------------|
-| Missing resource id | `404` + not-found message | ✅ Auth, tracks, sessions. ⚠️ Students, instructors, enrollments and payments currently return `500` — see open items |
-| Invalid request body | `400` + validation errors | ✅ Model-binding failures and the Auth/Track/Session validators. ⚠️ Validators in the Student/Instructor/Enrollment/Payment services currently return `500` |
+| Missing resource id | `404` + not-found message | ✅ Students, instructors, enrollments, payments, sessions, reports, auth (via `NotFoundResult`).  |
+| Invalid request body | `400` + validation errors | ✅ Model-binding failures and every migrated service (`ValidationErrorResult`).  |
 | No token | `401` | ✅ (empty body — see open items) |
-| Wrong role | `403` | ✅ role mismatch returns an empty `403`; ownership mismatch returns the JSON `"Access denied."` body |
-| Unexpected exception | `500` + safe generic message | ✅ for unhandled exceptions. ⚠️ exceptions caught inside services are returned as `500` with the raw `ex.Message` |
+| Wrong role | `403` | ✅ role mismatch returns an empty `403`; ownership mismatch returns the JSON body |
 
 ---
 
 ## 📝 Logging
 
-**Configuration:** console and debug providers; default level `Information`, with `Microsoft.AspNetCore` at `Warning`. Entity Framework SQL command logging is on in Development only, and sensitive-data logging is **not** enabled, so parameter values are masked.
+**Configuration:** console and debug providers, minimum level `Information`; `ILogger<T>` is injected into every service. Messages are **structured** (named placeholders such as `{UserId}`, `{EnrollmentId}`, `{PaymentId}`), so they can be filtered and queried instead of searched as text.
 
-**What is logged today**
-
-| Event | Level | Where |
-|-------|-------|-------|
-| Unhandled exception, with HTTP method and path | Error | Global exception handler |
-| Database migrations: start, success | Information | `Program.ApplyMigrationsAsync` |
-| Database migration failure | Critical | `Program.ApplyMigrationsAsync` |
+**Levels:** `Information` for normal events and successes, `Warning` for rejected requests (validation failures, ownership violations, invalid transitions, failed logins), `Error` for exceptions, `Critical` for a failed database migration.
 
 **Required events from the task**
 
-| Required event | Status |
-|----------------|--------|
-| Log exceptions | ⚠️ Unhandled ones are logged; exceptions caught inside services are not |
-| Log login success / failure | ❌ Not yet — `AuthService` has no logger |
-| Log payment updates | ❌ Not yet |
-| Log enrollment changes | ❌ Not yet |
-| Never log passwords or tokens | ✅ Nothing in the code logs credentials, tokens, request bodies or headers |
+| Required event | Status | What is logged |
+|----------------|--------|----------------|
+| **Login success / failure** | ✅ | Attempt (email); success (user id, email); failure with the reason — validation failed, user not found, user inactive, invalid password |
+| **Payment updates** | ✅ | Payment creation (enrollment id, amount, user id), validation / ownership / already-paid / overpayment rejections, enrollment activated by full payment, success (payment id); payment **status change** requests, invalid transitions, success |
+| **Enrollment changes** | ✅ | Enrollment created (id, student, track) and every rejection reason; status-change request, invalid transition, success; refund processing for cancelled enrollments |
+| **Exceptions** | ✅ | Every service method logs the caught exception with `LogError`; the global middleware logs anything unhandled with the request method and path |
+| **No passwords or tokens in logs** | ✅ | No log call has a password, token, password-hash or refresh-token placeholder, and no request body is logged |
+
+**Also logged:** registration (attempt, rejection reasons, success), password change, token refresh (each failure reason), logout, student/instructor creation, and database migrations.
+
+**What identifiers are logged:** user ids, entity ids, and the email address on authentication events; student/instructor creation logs email and phone number. Treat these logs as containing personal data.
 
 ---
 
@@ -232,25 +252,16 @@ What it does against the spec's checklist:
 
 Listed so the status above is verifiable, and so each can be closed and removed from this list:
 
-1. **Status codes in several services.** `Result.FailureResult` defaults to `500`, and the Student, Instructor, Enrollment, Payment and Report services mostly don't pass a status code — so their validation and not-found failures return `500`. The spec says validation errors must **not** be hidden as `500`.
-2. **Repeated `try/catch`.** About 35 service methods wrap their body in `try/catch` and return `ex.Message` to the client — the opposite of centralizing unexpected errors, and it bypasses both the global handler and logging.
-3. **Logging of business events** (login, payments, enrollments) is not implemented.
-4. **`401` / `403` bodies** from the framework are empty; the spec expects *"Authentication required"* and *"Access denied"* messages.
-5. **The handler is inline in `Program.cs`** rather than a dedicated middleware class, and its JSON uses `errorCode` where the `Result` wrapper uses `statusCode`.
-6. **Register has no password-strength rule** (only required + must match); the spec asks for a strong password.
-7. **Model-binding `400`s** use ASP.NET's default validation-problem format, which differs from the `Result` body.
-8. **Rule 27 (capacity)** — the enrolled-count query combines its conditions without parentheses, so it counts more than the target track's enrollments.
+1. **Two track methods are not migrated.** `TrainingTrackService.GetTrackByIdAsync` and `CreateTrackAsync` still use the older failure style (no typed result factories, no logging), unlike every other service method.
+2. **Exception messages reach the client.** The middleware puts `exception.Message` into `errors` in every environment (and the inner message for `DbUpdateException`), and each service's `catch` block returns `ex.Message` in its `Result`. The spec asks for a safe generic message.
+3. **Every service method still has its own `try/catch`.** The spec asks to centralize unexpected errors instead of repeating `try/catch`; because services catch first, most exceptions never reach the middleware.
+4. **Broad exception mapping.** `InvalidOperationException` and `ArgumentException` map to `400`, and `TimeoutException` to `408`; those types are also raised by genuine server faults, which would then be reported as client errors.
+5. **`401` / `403` responses from the framework have an empty body.** The spec expects *"Authentication required"* and *"Access denied"* messages.
+6. **Register has no password-strength rule** in the code reviewed — only required + must match. `ResultMessages.Validation.PasswordWeak` exists, but nothing uses it.
+7. **Model-binding `400`s** use ASP.NET's default validation-problem format, which differs from the standard body.
 
 ---
 
 ## 🖼 Evidence
 
-> 📌 **[View Evidence on Google Drive](https://drive.google.com/your-evidence-link-here)**
-
-| Required evidence | Preview |
-|-------------------|---------|
-| Screenshot — validation error (e.g. `POST /api/auth/register` with a bad email and mismatched passwords → `400`) | *(placeholder)* |
-| Screenshot — unauthorized request (`GET /api/auth/me` with no token → `401`) | *(placeholder)* |
-| Screenshot — forbidden request (student token on `GET /api/reports/revenue-summary` → `403`) | *(placeholder)* |
-| Middleware code snippet | ✅ included in [Global Exception Handler](#-global-exception-handler) |
-| Error-strategy explanation | ✅ [Error Strategy](#-error-strategy) |
+> 📌 **[View Evidence on Google Drive](https://drive.google.com/drive/folders/1XNKC36uIjZQfDhqIl1zAt_SgLVoo31X2?usp=drive_link)**

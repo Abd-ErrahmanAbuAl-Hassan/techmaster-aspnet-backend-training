@@ -24,16 +24,15 @@ namespace TrainingCenter.Application.Services.Implementations
         }
 
         public async Task<Result<PagedResult<StudentListItemResponse>>> GetStudentsAsync(
-            int pageNumber = 1, 
-            int pageSize = 10, 
-            string search = null, 
-            bool? isActive = null, 
+            int pageNumber = 1,
+            int pageSize = 10,
+            string? search = null,
+            bool? isActive = null,
             bool? isDeleted = null)
         {
             try
             {
-                _logger.LogInformation("Fetching students. Page: {PageNumber}, Size: {PageSize}, Search: {Search}, IsActive: {IsActive}, IsDeleted: {IsDeleted}",
-                    pageNumber, pageSize, search, isActive, isDeleted);
+                _logger.LogServiceCall("StudentService", "GetStudentsAsync", new { pageNumber, pageSize, search, isActive, isDeleted });
 
                 var errors = new List<string>();
                 if (pageNumber < 1)
@@ -45,10 +44,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetStudentsAsync. Errors: {@Errors}", errors);
-                    return Result<PagedResult<StudentListItemResponse>>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogValidationError("Get Students.", errors);
+                    return Result<PagedResult<StudentListItemResponse>>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
 
                 var query = await _unitOfWork.Students.GetAllAsync();
@@ -84,9 +81,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!students.Any())
                 {
-                    _logger.LogInformation("No students found with the specified criteria.");
-                    return Result<PagedResult<StudentListItemResponse>>.NotFoundResult(
-                        ResultMessages.NotFound.RecordNotFound);
+                    _logger.LogResourceNotFound("Students", new { pageNumber, pageSize, search, isActive, isDeleted });
+                    return Result<PagedResult<StudentListItemResponse>>.NotFoundResult(ResultMessages.NotFound.RecordNotFound);
                 }
 
                 _logger.LogInformation("Successfully retrieved {Count} students.", students.Count);
@@ -103,10 +99,8 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving students. Exception: {@Exception}", ex);
-                return Result<PagedResult<StudentListItemResponse>>.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,
-                    ex.Message);
+                _logger.LogServiceError("StudentService", "GetStudentsAsync", ex);
+                return Result<PagedResult<StudentListItemResponse>>.FailureResult(ResultMessages.ServerError.ProcessingError, ex.Message);
             }
         }
 
@@ -114,11 +108,10 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching student with ID: {StudentId}", id);
-
+                _logger.LogServiceCall("StudentService", "GetStudentByIdAsync", id);
                 if (id < 1)
                 {
-                    _logger.LogWarning("Invalid student ID: {StudentId}", id);
+                    _logger.LogValidationError("student ID", [id.ToString()]);
                     return Result<StudentDetailsResponse>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         new List<string> { string.Format(ResultMessages.Validation.PositiveNumber, "Student ID") });
@@ -130,9 +123,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (student == null)
                 {
-                    _logger.LogInformation("Student not found. ID: {StudentId}", id);
-                    return Result<StudentDetailsResponse>.NotFoundResult(
-                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Student"));
+                    _logger.LogResourceNotFound("Student", id);
+                    return Result<StudentDetailsResponse>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Student"));
                 }
 
                 var response = new StudentDetailsResponse
@@ -163,7 +155,8 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving student by ID: {StudentId}. Exception: {@Exception}", id, ex);
+
+                _logger.LogServiceError("StudentService", "GetStudentByIdAsync", ex);
                 return Result<StudentDetailsResponse>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -174,29 +167,24 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Creating new student. Request: {@Request}", new { request.Email, request.PhoneNumber });
-
+                _logger.LogServiceCall("StudentService", "CreateStudentAsync", new { request.Email, request.PhoneNumber });
                 var errors = UserValidation.Validate(request);
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for CreateStudentAsync. Errors: {@Errors}", errors);
-                    return Result<StudentDetailsResponse>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogValidationError("Create Student.", errors);
+                    return Result<StudentDetailsResponse>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
 
                 if (await _unitOfWork.Students.ExistsAsync(s => s.Email == request.Email))
                 {
-                    _logger.LogWarning("Email already exists. Email: {Email}", request.Email);
-                    return Result<StudentDetailsResponse>.ConflictResult(
-                        ResultMessages.Conflict.DuplicateEmail);
+                    _logger.LogBusinessLogicError($"Email already exists. Email: {request.Email}");
+                    return Result<StudentDetailsResponse>.ConflictResult(ResultMessages.Conflict.DuplicateEmail);
                 }
 
                 if (await _unitOfWork.Students.ExistsAsync(s => s.PhoneNumber == request.PhoneNumber))
                 {
-                    _logger.LogWarning("Phone number already exists. Phone: {Phone}", request.PhoneNumber);
-                    return Result<StudentDetailsResponse>.ConflictResult(
-                        ResultMessages.Conflict.DuplicatePhoneNumber);
+                    _logger.LogBusinessLogicError($"Phone number already exists. Phone: {request.PhoneNumber}");
+                    return Result<StudentDetailsResponse>.ConflictResult(ResultMessages.Conflict.DuplicatePhoneNumber);
                 }
 
                 var student = new Student
@@ -225,14 +213,12 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 _logger.LogInformation("Successfully created student. ID: {StudentId}, Email: {Email}", student.Id, student.Email);
 
-                return Result<StudentDetailsResponse>.SuccessResult(
-                    response,
-                    string.Format(ResultMessages.Success.ResourceCreated, "Student"),
-                    201);
+                return Result<StudentDetailsResponse>.SuccessResult(response, string.Format(ResultMessages.Success.ResourceCreated, "Student"), 201);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while creating student. Exception: {@Exception}", ex);
+
+                _logger.LogServiceError("StudentService", "CreateStudentAsync", ex);
                 return Result<StudentDetailsResponse>.FailureResult(
                     ResultMessages.ServerError.DatabaseError,
                     ex.Message);
@@ -243,11 +229,10 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Updating student. ID: {StudentId}", id);
-
+                _logger.LogServiceCall("StudentService", "UpdateStudentAsync", id);
                 if (id < 1)
                 {
-                    _logger.LogWarning("Invalid student ID: {StudentId}", id);
+                    _logger.LogValidationError("student Id", [id.ToString()]);
                     return Result<StudentResponse>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         new List<string> { string.Format(ResultMessages.Validation.PositiveNumber, "Student ID") });
@@ -256,16 +241,15 @@ namespace TrainingCenter.Application.Services.Implementations
                 var student = await _unitOfWork.Students.GetFirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted);
                 if (student == null)
                 {
-                    _logger.LogInformation("Student not found for update. ID: {StudentId}", id);
-                    return Result<StudentResponse>.NotFoundResult(
-                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Student"));
+                    _logger.LogResourceNotFound("Student", id);
+                    return Result<StudentResponse>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Student"));
                 }
 
                 if (!string.IsNullOrWhiteSpace(request.Email) && request.Email != student.Email)
                 {
                     if (await _unitOfWork.Students.ExistsAsync(s => s.Email == request.Email && s.Id != id))
                     {
-                        _logger.LogWarning("Email already exists for another student. Email: {Email}", request.Email);
+                        _logger.LogBusinessLogicError("Email already exists for another student. Email: {request.Email}");
                         return Result<StudentResponse>.ConflictResult(
                             ResultMessages.Conflict.DuplicateEmail);
                     }
@@ -275,9 +259,8 @@ namespace TrainingCenter.Application.Services.Implementations
                 {
                     if (await _unitOfWork.Students.ExistsAsync(s => s.PhoneNumber == request.PhoneNumber && s.Id != id))
                     {
-                        _logger.LogWarning("Phone number already exists for another student. Phone: {Phone}", request.PhoneNumber);
-                        return Result<StudentResponse>.ConflictResult(
-                            ResultMessages.Conflict.DuplicatePhoneNumber);
+                        _logger.LogBusinessLogicError("Phone number already exists for another student. Phone: {request.PhoneNumber}");
+                        return Result<StudentResponse>.ConflictResult(ResultMessages.Conflict.DuplicatePhoneNumber);
                     }
                 }
 
@@ -313,10 +296,8 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while updating student. ID: {StudentId}, Exception: {@Exception}", id, ex);
-                return Result<StudentResponse>.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,
-                    ex.Message);
+                _logger.LogServiceError("StudentService", "UpdateStudentAsync", ex);
+                return Result<StudentResponse>.FailureResult(ResultMessages.ServerError.ProcessingError, ex.Message);
             }
         }
 
@@ -324,11 +305,10 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Deleting student. ID: {StudentId}", id);
-
+                _logger.LogServiceCall("StudentService", "DeleteStudentAsync", id);
                 if (id < 1)
                 {
-                    _logger.LogWarning("Invalid student ID: {StudentId}", id);
+                    _logger.LogValidationError("student Id", [id.ToString()]);
                     return Result<string>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         new List<string> { string.Format(ResultMessages.Validation.PositiveNumber, "Student ID") });
@@ -337,9 +317,8 @@ namespace TrainingCenter.Application.Services.Implementations
                 var student = await _unitOfWork.Students.GetFirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted);
                 if (student == null)
                 {
-                    _logger.LogInformation("Student not found for deletion. ID: {StudentId}", id);
-                    return Result<string>.NotFoundResult(
-                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Student"));
+                    _logger.LogResourceNotFound("Student", id);
+                    return Result<string>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Student"));
                 }
 
                 student.IsActive = false;
@@ -355,7 +334,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while deleting student. ID: {StudentId}, Exception: {@Exception}", id, ex);
+                _logger.LogServiceError("StudentService", "DeleteStudentAsync", ex);
                 return Result<string>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);

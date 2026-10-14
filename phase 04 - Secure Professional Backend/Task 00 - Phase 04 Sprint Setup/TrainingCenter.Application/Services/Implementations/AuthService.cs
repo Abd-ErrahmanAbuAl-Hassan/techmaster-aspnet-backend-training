@@ -40,12 +40,11 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Login attempt for email: {Email}", request.Email);
-
+                _logger.LogServiceCall("AuthService", "LoginAsync", request.Email);
                 var errors = AuthValidation.LoginValidate(request);
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Login validation failed. Errors: {@Errors}", errors);
+                    _logger.LogValidationError("Validation of login request fields",errors);
                     return Result<AuthResponse>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         errors);
@@ -54,21 +53,23 @@ namespace TrainingCenter.Application.Services.Implementations
                 var user = await _unitOfWork.Users.GetByEmailAsync(request.Email);
                 if (user == null)
                 {
-                    _logger.LogWarning("Login failed: User not found. Email: {Email}", request.Email);
+                    _logger.LogResourceNotFound("User",request.Email);
+
                     return Result<AuthResponse>.UnauthorizedResult(
                         ResultMessages.Unauthorized.InvalidCredentials);
                 }
 
                 if (!user.IsActive)
                 {
-                    _logger.LogWarning("Login failed: User is inactive. Email: {Email}", request.Email);
+                    _logger.LogBusinessLogicError($"Login failed: User is inactive. Email: {request.Email}");
                     return Result<AuthResponse>.ConflictResult(
                         ResultMessages.Unauthorized.AccountInactive);
                 }
 
                 if (!_passwordHasher.Verify(request.Password, user.PasswordHashed))
                 {
-                    _logger.LogWarning("Login failed: Invalid password. Email: {Email}", request.Email);
+                    _logger.LogValidationError($"Verify password for Email: {request.Email}",["Password is wrong"]);
+
                     return Result<AuthResponse>.UnauthorizedResult(
                         ResultMessages.Unauthorized.InvalidCredentials);
                 }
@@ -104,7 +105,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred during login. Exception: {@Exception}", ex);
+                _logger.LogServiceError("AuthService", "LoginAuth", ex);
                 return Result<AuthResponse>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -115,7 +116,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Registration attempt. Email: {Email}, Role: {Role}", request.Email, role);
+                _logger.LogServiceCall("AuthService", "RegisterAsync", new { request.Email, role });
 
                 var errors = AuthValidation.RegisterValidate(request);
 
@@ -124,7 +125,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Registration validation failed. Errors: {@Errors}", errors);
+                    _logger.LogValidationError("Registration validation failed", errors);
                     return Result<CurrentUserResponse>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         errors);
@@ -133,7 +134,7 @@ namespace TrainingCenter.Application.Services.Implementations
                 var existingUser = await _unitOfWork.Users.GetByEmailAsync(request.Email);
                 if (existingUser != null)
                 {
-                    _logger.LogWarning("Registration failed: Email already exists. Email: {Email}", request.Email);
+                    _logger.LogBusinessLogicError($"Registration failed: Email already exists. Email: {request.Email}");
                     return Result<CurrentUserResponse>.ConflictResult(
                         ResultMessages.Conflict.DuplicateEmail);
                 }
@@ -174,10 +175,9 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred during registration. Exception: {@Exception}", ex);
-                return Result<CurrentUserResponse>.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,
-                    ex.Message);
+                _logger.LogServiceError("AuthService", "RegisterAsync", ex);
+                return Result<CurrentUserResponse>.FailureResult(ResultMessages.ServerError.ProcessingError,
+                                                                 ex.Message);
             }
         }
 
@@ -185,11 +185,11 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching current user. UserId: {UserId}", userId);
-
+                _logger.LogServiceCall("AuthService", "GetCurrentUserAsync", userId);
                 if (userId < 1)
                 {
-                    _logger.LogWarning("Invalid user ID: {UserId}", userId);
+                    _logger.LogValidationError("user id validation", [$"Invalid user ID: {userId}"]);
+
                     return Result<CurrentUserResponse>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         new List<string> { string.Format(ResultMessages.Validation.PositiveNumber, "User ID") });
@@ -199,14 +199,14 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (user == null)
                 {
-                    _logger.LogInformation("User not found. UserId: {UserId}", userId);
+                    _logger.LogResourceNotFound("User", userId);
                     return Result<CurrentUserResponse>.NotFoundResult(
                         string.Format(ResultMessages.NotFound.ResourceNotFound, "User"));
                 }
 
                 if (!user.IsActive)
                 {
-                    _logger.LogWarning("User is inactive. UserId: {UserId}", userId);
+                    _logger.LogBusinessLogicError($"User is inactive. UserId: {userId}");
                     return Result<CurrentUserResponse>.ConflictResult(
                         ResultMessages.Unauthorized.AccountInactive);
                 }
@@ -226,7 +226,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while fetching current user. UserId: {UserId}, Exception: {@Exception}", userId, ex);
+                _logger.LogServiceError("AuthService", "GetCurrentUserAsync", ex);
                 return Result<CurrentUserResponse>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -237,7 +237,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Password change attempt. UserId: {UserId}", id);
+                _logger.LogServiceCall("AuthService", "ChangePasswordAsync", new { id , request});
 
                 var errors = new List<string>();
                 if (id < 1)
@@ -255,7 +255,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Password change validation failed. Errors: {@Errors}", errors);
+                    _logger.LogValidationError("Password change.", errors);
                     return Result.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         errors);
@@ -264,21 +264,22 @@ namespace TrainingCenter.Application.Services.Implementations
                 var user = await _unitOfWork.Users.GetByIdAsync(id);
                 if (user == null)
                 {
-                    _logger.LogInformation("User not found for password change. UserId: {UserId}", id);
+                    _logger.LogResourceNotFound("User", id);
                     return Result.NotFoundResult(
                         string.Format(ResultMessages.NotFound.ResourceNotFound, "User"));
                 }
 
                 if (!user.IsActive)
                 {
-                    _logger.LogWarning("Cannot change password for inactive user. UserId: {UserId}", id);
+                    _logger.LogBusinessLogicError($"Cannot change password for inactive user. UserId: {id}");
                     return Result.ConflictResult(
                         ResultMessages.Unauthorized.AccountInactive);
                 }
 
                 if (!_passwordHasher.Verify(request.OldPassword, user.PasswordHashed))
                 {
-                    _logger.LogWarning("Password change failed: Old password is incorrect. UserId: {UserId}", id);
+                    _logger.LogValidationError($"Password change. UserId: {id}", ["Old password is incorrect."]);
+
                     return Result.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         new List<string> { "Old password is incorrect." });
@@ -294,7 +295,8 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred during password change. UserId: {UserId}, Exception: {@Exception}", id, ex);
+                _logger.LogServiceError("AuthService", "ChangePasswordAsync", ex);
+
                 return Result.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -305,52 +307,51 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Token refresh attempt.");
+                _logger.LogServiceCall("AuthService", "RefreshTokenAsync", request);
 
                 if (string.IsNullOrEmpty(request.RefreshToken))
                 {
-                    _logger.LogWarning("Token refresh failed: Refresh token is required.");
-                    return Result<RefreshTokenResponse>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        new List<string> { "Refresh token is required." });
+                    _logger.LogValidationError("Token refresh.", ["Refresh token is required."]);
+
+                    return Result<RefreshTokenResponse>.ValidationErrorResult("Validation errors occurred. Please review the details below.", new List<string> { "Refresh token is required." });
                 }
 
                 var tokenHashed = _jwtTokenGenerator.HashToken(request.RefreshToken);
 
-                var dbToken = await _unitOfWork.RefreshTokens.GetFirstOrDefaultAsync(
-                    x => x.Token == tokenHashed,
-                    "User");
+                var dbToken = await _unitOfWork.RefreshTokens.GetFirstOrDefaultAsync(x => x.Token == tokenHashed,"User");
 
                 if (dbToken == null)
                 {
-                    _logger.LogWarning("Token refresh failed: Invalid refresh token.");
-                    return Result<RefreshTokenResponse>.UnauthorizedResult(
-                        ResultMessages.Unauthorized.TokenInvalid);
+                    _logger.LogResourceNotFound("Db Refresh Token", request.RefreshToken);
+
+                    return Result<RefreshTokenResponse>.UnauthorizedResult(ResultMessages.Unauthorized.TokenInvalid);
                 }
 
                 if (dbToken.ExpiresAt <= DateTime.UtcNow)
                 {
-                    _logger.LogWarning("Token refresh failed: Refresh token expired.");
-                    return Result<RefreshTokenResponse>.UnauthorizedResult(
-                        ResultMessages.Unauthorized.TokenExpired);
+                    _logger.LogValidationError("token refresh expire date", ["Refresh token is expired."]);
+                    return Result<RefreshTokenResponse>.UnauthorizedResult(ResultMessages.Unauthorized.TokenExpired);
                 }
 
                 if (dbToken.RevokedAt != null)
                 {
-                    _logger.LogWarning("Token refresh failed: Refresh token has been revoked.");
-                    return Result<RefreshTokenResponse>.UnauthorizedResult(
-                        ResultMessages.Unauthorized.TokenInvalid);
+                    _logger.LogBusinessLogicError("Token refresh failed: Refresh token has been revoked.");
+                    return Result<RefreshTokenResponse>.UnauthorizedResult(ResultMessages.Unauthorized.TokenInvalid);
                 }
 
                 var user = dbToken.User;
 
-                if (user == null || !user.IsActive)
+                if (user == null)
                 {
-                    _logger.LogWarning("Token refresh failed: User not found or inactive.");
-                    return Result<RefreshTokenResponse>.UnauthorizedResult(
-                        ResultMessages.Unauthorized.TokenInvalid);
+                    _logger.LogResourceNotFound("User",dbToken);
+                    return Result<RefreshTokenResponse>.UnauthorizedResult(ResultMessages.Unauthorized.TokenInvalid);
                 }
 
+                if(!user.IsActive)
+                {
+                    _logger.LogBusinessLogicError($"Refresh token failed: User is inactive. UserId:{user.Id}");
+                    return Result<RefreshTokenResponse>.UnauthorizedResult(ResultMessages.Unauthorized.AccountInactive);
+                }
                 dbToken.RevokedAt = DateTime.UtcNow;
 
                 var accessToken = _jwtTokenGenerator.GenerateJwtToken(user, _jwt);
@@ -378,10 +379,9 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred during token refresh. Exception: {@Exception}", ex);
-                return Result<RefreshTokenResponse>.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,
-                    ex.Message);
+                _logger.LogServiceError("AuthService", "RefreshTokenAsync", ex);
+
+                return Result<RefreshTokenResponse>.FailureResult(ResultMessages.ServerError.ProcessingError,ex.Message);
             }
         }
 
@@ -389,7 +389,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Logout attempt. UserId: {UserId}", userId);
+                _logger.LogServiceCall("AuthService", "LogoutAsync", new { userId, refreshToken });
 
                 var errors = new List<string>();
                 if (string.IsNullOrEmpty(refreshToken))
@@ -399,10 +399,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Logout validation failed. Errors: {@Errors}", errors);
-                    return Result.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogValidationError("logout", errors);
+                    return Result.ValidationErrorResult("Validation errors occurred. Please review the details below.",errors);
                 }
 
                 var tokenHashed = _jwtTokenGenerator.HashToken(refreshToken);
@@ -411,16 +409,14 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (dbToken == null || dbToken.UserId != userId)
                 {
-                    _logger.LogWarning("Logout failed: Invalid refresh token. UserId: {UserId}", userId);
-                    return Result.UnauthorizedResult(
-                        ResultMessages.Unauthorized.TokenInvalid);
+                    _logger.LogValidationError("logout", [$"Invalid refresh token. UserId: {userId}"]);
+                    return Result.UnauthorizedResult(ResultMessages.Unauthorized.TokenInvalid);
                 }
 
                 if (dbToken.RevokedAt != null)
                 {
                     _logger.LogInformation("Logout successful (token already revoked). UserId: {UserId}", userId);
-                    return Result.SuccessResult(
-                        ResultMessages.Success.LogoutSuccess);
+                    return Result.SuccessResult(ResultMessages.Success.LogoutSuccess);
                 }
 
                 dbToken.RevokedAt = DateTime.UtcNow;
@@ -428,15 +424,13 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 _logger.LogInformation("Logout successful. UserId: {UserId}", userId);
 
-                return Result.SuccessResult(
-                    ResultMessages.Success.LogoutSuccess);
+                return Result.SuccessResult(ResultMessages.Success.LogoutSuccess);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred during logout. UserId: {UserId}, Exception: {@Exception}", userId, ex);
-                return Result.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,
-                    ex.Message);
+                _logger.LogServiceError("AuthService", "LogoutAsync", ex);
+
+                return Result.FailureResult(ResultMessages.ServerError.ProcessingError,ex.Message);
             }
         }
     }

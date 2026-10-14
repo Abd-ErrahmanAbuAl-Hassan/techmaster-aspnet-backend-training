@@ -11,10 +11,6 @@ using TrainingCenter.Domain.Results;
 
 namespace TrainingCenter.Application.Services.Implementations
 {
-    /// <summary>
-    /// Service for managing payment operations including creation, retrieval, and status updates.
-    /// Implements transaction management for payment processing.
-    /// </summary>
     public class PaymentService : IPaymentService
     {
         private readonly IUnitOfWork _unitOfWork;
@@ -37,9 +33,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching payments. Page: {PageNumber}, Size: {PageSize}, StartDate: {StartDate}, EndDate: {EndDate}, Status: {Status}",
-                    pageNumber, pageSize, startDate, endDate, status);
-
+                _logger.LogServiceCall("PaymentService", "GetPaymentsAsync", new { pageNumber, pageSize, startDate, endDate, status });
                 var errors = new List<string>();
                 if (pageNumber < 1)
                     errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Page number"));
@@ -56,7 +50,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetPaymentsAsync. Errors: {@Errors}", errors);
+                    _logger.LogValidationError("Get Payments", errors);
                     return Result<PagedResult<PaymentResponse>>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         errors);
@@ -89,7 +83,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!payments.Any())
                 {
-                    _logger.LogInformation("No payments found with the specified criteria.");
+                    _logger.LogResourceNotFound("payments.", new { pageNumber, pageSize, startDate, endDate, status });
                     return Result<PagedResult<PaymentResponse>>.NotFoundResult(
                         ResultMessages.NotFound.RecordNotFound);
                 }
@@ -108,7 +102,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving payments. Exception: {@Exception}", ex);
+                _logger.LogServiceError("PaymentService", "GetPaymentsAsync", ex);
                 return Result<PagedResult<PaymentResponse>>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -124,8 +118,7 @@ namespace TrainingCenter.Application.Services.Implementations
                 await using var transaction = await _unitOfWork.BeginTransactionAsync();
                 try
                 {
-                    _logger.LogInformation("Creating payment. EnrollmentId: {EnrollmentId}, Amount: {Amount}, UserId: {UserId}",
-                        request.EnrollmentId, request.Amount, request.UserId);
+                    _logger.LogServiceCall("PaymentService", "CreatePaymentAsync", new { request.EnrollmentId, request.Amount, request.UserId });
 
                     var errors = new List<string>();
                     if (request.EnrollmentId < 1)
@@ -137,7 +130,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                     if (errors.Any())
                     {
-                        _logger.LogWarning("Validation failed for CreatePaymentAsync. Errors: {@Errors}", errors);
+                        _logger.LogValidationError("Create Payment.", errors);
                         return Result<PaymentResponse>.ValidationErrorResult(
                             "Validation errors occurred. Please review the details below.",
                             errors);
@@ -149,23 +142,21 @@ namespace TrainingCenter.Application.Services.Implementations
 
                     if (enrollment == null)
                     {
-                        _logger.LogInformation("Enrollment not found. ID: {EnrollmentId}", request.EnrollmentId);
+                        _logger.LogResourceNotFound("Enrollment", request.EnrollmentId);
                         return Result<PaymentResponse>.NotFoundResult(
                             string.Format(ResultMessages.NotFound.ResourceNotFound, "Enrollment"));
                     }
 
                     if (enrollment.StudentId != request.UserId)
                     {
-                        _logger.LogWarning("User trying to pay for enrollment they don't own. UserId: {UserId}, EnrollmentId: {EnrollmentId}", request.UserId, request.EnrollmentId);
-                        return Result<PaymentResponse>.ForbiddenResult(
-                            ResultMessages.Unauthorized.AccessDenied);
+                        _logger.LogBusinessLogicError($"User trying to pay for enrollment they don't own. UserId: {request.UserId}, EnrollmentId: {request.EnrollmentId}");
+                        return Result<PaymentResponse>.ForbiddenResult(ResultMessages.Unauthorized.AccessDenied);
                     }
 
                     if (enrollment.Status == EnrollmentStatus.Cancelled)
                     {
-                        _logger.LogWarning("Cannot create payment for cancelled enrollment. EnrollmentId: {EnrollmentId}", enrollment.Id);
-                        return Result<PaymentResponse>.ConflictResult(
-                            "Cannot create a payment for a cancelled enrollment.");
+                        _logger.LogBusinessLogicError($"Cannot create payment for cancelled enrollment. EnrollmentId: {enrollment.Id}");
+                        return Result<PaymentResponse>.ConflictResult("Cannot create a payment for a cancelled enrollment.");
                     }
 
                     var totalPaid = (await _unitOfWork.Payments.GetAllAsync(
@@ -178,7 +169,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                     if (totalPaid >= enrollment.TrainingTrack!.Price)
                     {
-                        _logger.LogWarning("Enrollment is already fully paid. EnrollmentId: {EnrollmentId}", enrollment.Id);
+                        _logger.LogBusinessLogicError("Enrollment is already fully paid. EnrollmentId: {enrollment.Id}");
                         return Result<PaymentResponse>.ConflictResult(
                             "The enrollment has already been fully paid.");
                     }
@@ -187,10 +178,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                     if (totalAmount > enrollment!.TrainingTrack!.Price)
                     {
-                        _logger.LogWarning("Payment amount exceeds track price. EnrollmentId: {EnrollmentId}, PaymentAmount: {PaymentAmount}, TrackPrice: {TrackPrice}",
-                            enrollment.Id, request.Amount, enrollment.TrainingTrack.Price);
-                        return Result<PaymentResponse>.ConflictResult(
-                            ResultMessages.Conflict.InsufficientFunds);
+                        _logger.LogBusinessLogicError($"Payment amount exceeds track price. EnrollmentId: {enrollment.Id}, PaymentAmount: {request.Amount}, TrackPrice: {enrollment.TrainingTrack.Price}");
+                        return Result<PaymentResponse>.ConflictResult(ResultMessages.Conflict.InsufficientFunds);
                     }
                     else if (totalAmount < enrollment!.TrainingTrack!.Price)
                         status = PaymentStatus.PartiallyPaid;
@@ -238,7 +227,7 @@ namespace TrainingCenter.Application.Services.Implementations
                 catch (Exception ex)
                 {
                     await transaction.RollbackAsync();
-                    _logger.LogError(ex, "An error occurred while creating payment. Exception: {@Exception}", ex);
+                    _logger.LogServiceError("PaymentService", "CreatePaymentAsync", ex);
                     return Result<PaymentResponse>.FailureResult(
                         ResultMessages.ServerError.PaymentProcessingError,
                         ex.Message);
@@ -250,9 +239,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching enrollment payments. EnrollmentId: {EnrollmentId}, Page: {PageNumber}, Size: {PageSize}",
-                    enrollmentId, pageNumber, pageSize);
-
+                _logger.LogServiceCall("PaymentService", "GetEnrollmentPaymentsAsync", new { enrollmentId, pageNumber, pageSize });
                 var errors = new List<string>();
                 if (enrollmentId < 1)
                     errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Enrollment ID"));
@@ -265,7 +252,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetEnrollmentPaymentsAsync. Errors: {@Errors}", errors);
+                    _logger.LogValidationError("GetEnrollmentPaymentsAsync.", errors);
                     return Result<PagedResult<PaymentResponse>>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         errors);
@@ -274,7 +261,7 @@ namespace TrainingCenter.Application.Services.Implementations
                 var enrollment = await _unitOfWork.Enrollments.GetFirstOrDefaultAsync(e => e.Id == enrollmentId);
                 if (enrollment == null)
                 {
-                    _logger.LogInformation("Enrollment not found. ID: {EnrollmentId}", enrollmentId);
+                    _logger.LogResourceNotFound("Enrollment", enrollmentId);
                     return Result<PagedResult<PaymentResponse>>.NotFoundResult(
                         string.Format(ResultMessages.NotFound.ResourceNotFound, "Enrollment"));
                 }
@@ -299,7 +286,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!payments.Any())
                 {
-                    _logger.LogInformation("No payments found for enrollment. EnrollmentId: {EnrollmentId}", enrollmentId);
+                    _logger.LogResourceNotFound("payments for enrollment", enrollmentId);
                     return Result<PagedResult<PaymentResponse>>.NotFoundResult(
                         ResultMessages.NotFound.RecordNotFound);
                 }
@@ -318,8 +305,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving enrollment payments. EnrollmentId: {EnrollmentId}, Exception: {@Exception}", enrollmentId, ex);
-                return Result<PagedResult<PaymentResponse>>.FailureResult(
+                _logger.LogServiceError("PaymentService", "GetEnrollmentPaymentsAsync", ex); return Result<PagedResult<PaymentResponse>>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
             }
@@ -329,8 +315,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Updating payment status. PaymentId: {PaymentId}, NewStatus: {Status}", id, status);
-
+                _logger.LogServiceCall("PaymentService", "UpdatePaymentStatusAsync", new { id, status });
                 var errors = new List<string>();
                 if (id < 1)
                     errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Payment ID"));
@@ -339,7 +324,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for UpdatePaymentStatusAsync. Errors: {@Errors}", errors);
+                    _logger.LogValidationError("UpdatePaymentStatusAsync.", errors);
                     return Result<PaymentResponse>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         errors);
@@ -348,14 +333,14 @@ namespace TrainingCenter.Application.Services.Implementations
                 var payment = await _unitOfWork.Payments.GetFirstOrDefaultAsync(p => p.Id == id);
                 if (payment == null)
                 {
-                    _logger.LogInformation("Payment not found. ID: {PaymentId}", id);
+                    _logger.LogResourceNotFound("Payment", id);
                     return Result<PaymentResponse>.NotFoundResult(
                         string.Format(ResultMessages.NotFound.ResourceNotFound, "Payment"));
                 }
 
                 if (!IsValidStatusTransition(payment.PaymentStatus, status))
                 {
-                    _logger.LogWarning("Invalid status transition. Current: {CurrentStatus}, Requested: {NewStatus}", payment.PaymentStatus, status);
+                    _logger.LogBusinessLogicError($"Invalid status transition. Current: {payment.PaymentStatus}, Requested: {status}");
                     return Result<PaymentResponse>.ConflictResult(
                         $"Cannot transition from {payment.PaymentStatus} to {status}.");
                 }
@@ -380,7 +365,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while updating payment status. PaymentId: {PaymentId}, Exception: {@Exception}", id, ex);
+                _logger.LogServiceError("PaymentService", "UpdatePaymentStatusAsync", ex);
                 return Result<PaymentResponse>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);

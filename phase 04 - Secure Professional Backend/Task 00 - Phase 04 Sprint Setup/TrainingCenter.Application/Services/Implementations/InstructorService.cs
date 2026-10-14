@@ -12,9 +12,6 @@ using TrainingCenter.Domain.Results;
 
 namespace TrainingCenter.Application.Services.Implementations
 {
-    /// <summary>
-    /// Service for managing instructor-related operations including retrieval, creation, and updates.
-    /// </summary>
     public class InstructorService : IInstructorService
     {
         private readonly IUnitOfWork _unitOfWork;
@@ -30,9 +27,8 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching instructors. Page: {PageNumber}, Size: {PageSize}",
-                    pageNumber, pageSize);
 
+                _logger.LogServiceCall("InstructorService", "GetInstructorsAsync", new { pageNumber, pageSize });
                 var errors = new List<string>();
                 if (pageNumber < 1)
                     errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Page number"));
@@ -43,10 +39,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetInstructorsAsync. Errors: {@Errors}", errors);
-                    return Result<PagedResult<InstructorBasicResponse>>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogValidationError("Get Instructors.", errors);
+                    return Result<PagedResult<InstructorBasicResponse>>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
 
                 var query = await _unitOfWork.Instructors.GetAllAsync(i => i.IsActive);
@@ -65,9 +59,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!instructors.Any())
                 {
-                    _logger.LogInformation("No active instructors found.");
-                    return Result<PagedResult<InstructorBasicResponse>>.NotFoundResult(
-                        ResultMessages.NotFound.RecordNotFound);
+                    _logger.LogResourceNotFound("active instructors.", new { pageNumber, pageSize });
+                    return Result<PagedResult<InstructorBasicResponse>>.NotFoundResult(ResultMessages.NotFound.RecordNotFound);
                 }
 
                 _logger.LogInformation("Successfully retrieved {Count} instructors.", instructors.Count);
@@ -84,7 +77,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving instructors. Exception: {@Exception}", ex);
+                _logger.LogServiceError("InstructorService", "GetInstructorsAsync", ex);
                 return Result<PagedResult<InstructorBasicResponse>>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -95,11 +88,11 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching instructor with ID: {InstructorId}", id);
+                _logger.LogServiceCall("InstructorService", "GetInstructorByIdAsync", id);
 
                 if (id < 1)
                 {
-                    _logger.LogWarning("Invalid instructor ID: {InstructorId}", id);
+                    _logger.LogValidationError("instructor ID", [id.ToString()]);
                     return Result<InstructorBasicResponse>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         new List<string> { string.Format(ResultMessages.Validation.PositiveNumber, "Instructor ID") });
@@ -108,9 +101,8 @@ namespace TrainingCenter.Application.Services.Implementations
                 var instructor = await _unitOfWork.Instructors.GetFirstOrDefaultAsync(i => i.Id == id && i.IsActive);
                 if (instructor == null)
                 {
-                    _logger.LogInformation("Instructor not found. ID: {InstructorId}", id);
-                    return Result<InstructorBasicResponse>.NotFoundResult(
-                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Instructor"));
+                    _logger.LogResourceNotFound("Instructor", id);
+                    return Result<InstructorBasicResponse>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Instructor"));
                 }
 
                 _logger.LogInformation("Successfully retrieved instructor. ID: {InstructorId}", id);
@@ -126,10 +118,8 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving instructor by ID: {InstructorId}. Exception: {@Exception}", id, ex);
-                return Result<InstructorBasicResponse>.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,
-                    ex.Message);
+                _logger.LogServiceError("InstructorService", "GetInstructorByIdAsync", ex);
+                return Result<InstructorBasicResponse>.FailureResult(ResultMessages.ServerError.ProcessingError, ex.Message);
             }
         }
 
@@ -137,9 +127,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching instructor tracks. InstructorId: {InstructorId}, Page: {PageNumber}, Size: {PageSize}",
-                    instructorId, pageNumber, pageSize);
-
+                _logger.LogServiceCall("InstructorService", "GetInstructorTracksAsync", new { instructorId, pageNumber, pageSize });
                 var errors = new List<string>();
                 if (instructorId < 1)
                     errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Instructor ID"));
@@ -152,18 +140,15 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetInstructorTracksAsync. Errors: {@Errors}", errors);
-                    return Result<PagedResult<TrackDetailsResponse>>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogValidationError("Get Instructor Tracks.", errors);
+                    return Result<PagedResult<TrackDetailsResponse>>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
 
                 var instructor = await _unitOfWork.Instructors.GetFirstOrDefaultAsync(i => i.Id == instructorId && i.IsActive);
                 if (instructor == null)
                 {
-                    _logger.LogInformation("Instructor not found. ID: {InstructorId}", instructorId);
-                    return Result<PagedResult<TrackDetailsResponse>>.NotFoundResult(
-                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Instructor"));
+                    _logger.LogResourceNotFound("Instructor", instructorId);
+                    return Result<PagedResult<TrackDetailsResponse>>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Instructor"));
                 }
 
                 var query = await _unitOfWork.Tracks.GetAllAsync(
@@ -179,9 +164,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!tracks.Any())
                 {
-                    _logger.LogInformation("No tracks found for instructor. InstructorId: {InstructorId}", instructorId);
-                    return Result<PagedResult<TrackDetailsResponse>>.NotFoundResult(
-                        ResultMessages.NotFound.RecordNotFound);
+                    _logger.LogResourceNotFound("Tracks", instructorId);
+                    return Result<PagedResult<TrackDetailsResponse>>.NotFoundResult(ResultMessages.NotFound.RecordNotFound);
                 }
 
                 var response = tracks.Select(t => new TrackDetailsResponse
@@ -218,7 +202,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving instructor tracks. InstructorId: {InstructorId}, Exception: {@Exception}", instructorId, ex);
+                _logger.LogServiceError("InstructorService", "GetInstructorTracksAsync", ex);
                 return Result<PagedResult<TrackDetailsResponse>>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -229,40 +213,28 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Creating new instructor. Request: {@Request}", new { request.Email, request.PhoneNumber });
+                _logger.LogServiceCall("InstructorService", "CreateInstructorAsync", new { request.Email, request.PhoneNumber });
 
                 var errors = new List<string>();
-
-                if (request == null)
-                {
-                    _logger.LogWarning("CreateInstructorRequest is null.");
-                    return Result<InstructorBasicResponse>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        new List<string> { "Request cannot be null." });
-                }
 
                 errors = UserValidation.Validate(request);
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for CreateInstructorAsync. Errors: {@Errors}", errors);
-                    return Result<InstructorBasicResponse>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogResourceNotFound("Create Instructor.", errors);
+                    return Result<InstructorBasicResponse>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
 
                 if (await _unitOfWork.Instructors.ExistsAsync(i => i.Email == request.Email))
                 {
-                    _logger.LogWarning("Email already exists for another instructor. Email: {Email}", request.Email);
-                    return Result<InstructorBasicResponse>.ConflictResult(
-                        ResultMessages.Conflict.DuplicateEmail);
+                    _logger.LogBusinessLogicError($"Email already exists for another instructor. Email: {request.Email}");
+                    return Result<InstructorBasicResponse>.ConflictResult(ResultMessages.Conflict.DuplicateEmail);
                 }
 
                 if (await _unitOfWork.Instructors.ExistsAsync(i => i.PhoneNumber == request.PhoneNumber))
                 {
-                    _logger.LogWarning("Phone number already exists for another instructor. Phone: {Phone}", request.PhoneNumber);
-                    return Result<InstructorBasicResponse>.ConflictResult(
-                        ResultMessages.Conflict.DuplicatePhoneNumber);
+                    _logger.LogBusinessLogicError("Phone number already exists for another instructor. Phone: {request.PhoneNumber}");
+                    return Result<InstructorBasicResponse>.ConflictResult(ResultMessages.Conflict.DuplicatePhoneNumber);
                 }
 
                 var instructor = new Instructor
@@ -293,7 +265,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while creating instructor. Exception: {@Exception}", ex);
+                _logger.LogServiceError("InstructorService", "CreateInstructorAsync", ex);
                 return Result<InstructorBasicResponse>.FailureResult(
                     ResultMessages.ServerError.DatabaseError,
                     ex.Message);
@@ -304,11 +276,10 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Updating instructor. ID: {InstructorId}", id);
-
+                _logger.LogServiceCall("InstructorService", "UpdateInstructorAsync", id);
                 if (id < 1)
                 {
-                    _logger.LogWarning("Invalid instructor ID: {InstructorId}", id);
+                    _logger.LogValidationError("instructor ID", [id.ToString()]);
                     return Result<InstructorBasicResponse>.ValidationErrorResult(
                         "Validation errors occurred. Please review the details below.",
                         new List<string> { string.Format(ResultMessages.Validation.PositiveNumber, "Instructor ID") });
@@ -317,18 +288,16 @@ namespace TrainingCenter.Application.Services.Implementations
                 var instructor = await _unitOfWork.Instructors.GetFirstOrDefaultAsync(i => i.Id == id);
                 if (instructor == null)
                 {
-                    _logger.LogInformation("Instructor not found for update. ID: {InstructorId}", id);
-                    return Result<InstructorBasicResponse>.NotFoundResult(
-                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Instructor"));
+                    _logger.LogResourceNotFound("Instructor", id);
+                    return Result<InstructorBasicResponse>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Instructor"));
                 }
 
                 if (!string.IsNullOrWhiteSpace(request.Email) && request.Email != instructor.Email)
                 {
                     if (await _unitOfWork.Instructors.ExistsAsync(i => i.Email == request.Email && i.Id != id))
                     {
-                        _logger.LogWarning("Email already exists for another instructor. Email: {Email}", request.Email);
-                        return Result<InstructorBasicResponse>.ConflictResult(
-                            ResultMessages.Conflict.DuplicateEmail);
+                        _logger.LogBusinessLogicError("Email already exists for another instructor. Email: {request.Email}");
+                        return Result<InstructorBasicResponse>.ConflictResult(ResultMessages.Conflict.DuplicateEmail);
                     }
                 }
 
@@ -336,9 +305,8 @@ namespace TrainingCenter.Application.Services.Implementations
                 {
                     if (await _unitOfWork.Instructors.ExistsAsync(i => i.PhoneNumber == request.PhoneNumber && i.Id != id))
                     {
-                        _logger.LogWarning("Phone number already exists for another instructor. Phone: {Phone}", request.PhoneNumber);
-                        return Result<InstructorBasicResponse>.ConflictResult(
-                            ResultMessages.Conflict.DuplicatePhoneNumber);
+                        _logger.LogBusinessLogicError("Phone number already exists for another instructor. Phone: { request.PhoneNumber}");
+                        return Result<InstructorBasicResponse>.ConflictResult(ResultMessages.Conflict.DuplicatePhoneNumber);
                     }
                 }
 
@@ -372,7 +340,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while updating instructor. ID: {InstructorId}, Exception: {@Exception}", id, ex);
+                _logger.LogServiceError("InstructorService", "UpdateInstructorAsync", ex);
                 return Result<InstructorBasicResponse>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);

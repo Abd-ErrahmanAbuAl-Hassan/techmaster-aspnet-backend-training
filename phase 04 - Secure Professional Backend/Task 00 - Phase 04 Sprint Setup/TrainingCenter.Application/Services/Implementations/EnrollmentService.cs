@@ -34,8 +34,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching enrollments. Page: {PageNumber}, Size: {PageSize}, Status: {Status}, TrackId: {TrackId}, StudentId: {StudentId}, PaymentStatus: {PaymentStatus}",
-                    pageNumber, pageSize, status, trackId, studentId, paymentStatus);
+                _logger.LogServiceCall("EnrollmentService", "GetEnrollmentsAsync", new { pageNumber, pageSize, status, trackId, studentId, paymentStatus });
 
                 var errors = new List<string>();
                 if (pageNumber < 1)
@@ -47,10 +46,9 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetEnrollmentsAsync. Errors: {@Errors}", errors);
-                    return Result<PagedResult<EnrollmentDetailsResponse>>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogValidationError("get enrollment", errors);
+
+                    return Result<PagedResult<EnrollmentDetailsResponse>>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
 
                 var query = await _unitOfWork.Enrollments.GetAllAsync(includes: "Payments,Student,TrainingTrack");
@@ -71,7 +69,7 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!enrollments.Any())
                 {
-                    _logger.LogInformation("No enrollments found with the specified criteria.");
+                    _logger.LogResourceNotFound("Enrollments", new { pageNumber, pageSize, status, trackId, studentId, paymentStatus });
                     return Result<PagedResult<EnrollmentDetailsResponse>>.NotFoundResult(
                         ResultMessages.NotFound.RecordNotFound);
                 }
@@ -95,10 +93,8 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving enrollments. Exception: {@Exception}", ex);
-                return Result<PagedResult<EnrollmentDetailsResponse>>.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,
-                    ex.Message);
+                _logger.LogServiceError("EnrollmentService", "GetEnrollmentsAsync", ex);
+                return Result<PagedResult<EnrollmentDetailsResponse>>.FailureResult(ResultMessages.ServerError.ProcessingError, ex.Message);
             }
         }
 
@@ -106,14 +102,12 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching enrollment with ID: {EnrollmentId}", id);
+                _logger.LogServiceCall("EnrollmentService", "GetEnrollmentByIdAsync", id);
 
                 if (id < 1)
                 {
-                    _logger.LogWarning("Invalid enrollment ID: {EnrollmentId}", id);
-                    return Result<EnrollmentDetailsResponse>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        new List<string> { string.Format(ResultMessages.Validation.PositiveNumber, "Enrollment ID") });
+                    _logger.LogValidationError("get enrollment by id", [$"Invalid enrollment ID: {id}"]);
+                    return Result<EnrollmentDetailsResponse>.ValidationErrorResult("Validation errors occurred. Please review the details below.", new List<string> { string.Format(ResultMessages.Validation.PositiveNumber, "Enrollment ID") });
                 }
 
                 var enrollment = await _unitOfWork.Enrollments.GetFirstOrDefaultAsync(
@@ -122,9 +116,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (enrollment == null)
                 {
-                    _logger.LogInformation("Enrollment not found. ID: {EnrollmentId}", id);
-                    return Result<EnrollmentDetailsResponse>.NotFoundResult(
-                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Enrollment"));
+                    _logger.LogResourceNotFound("Enrollment", id);
+                    return Result<EnrollmentDetailsResponse>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Enrollment"));
                 }
 
                 _logger.LogInformation("Successfully retrieved enrollment. ID: {EnrollmentId}", id);
@@ -135,7 +128,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving enrollment by ID: {EnrollmentId}. Exception: {@Exception}", id, ex);
+                _logger.LogServiceError("EnrollmentService", "GetEnrollmentByIdAsync", ex);
                 return Result<EnrollmentDetailsResponse>.FailureResult(
                     ResultMessages.ServerError.ProcessingError,
                     ex.Message);
@@ -146,8 +139,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Creating new enrollment. StudentId: {StudentId}, TrackId: {TrackId}",
-                    request.StudentId, request.TrainingTrackId);
+                _logger.LogServiceCall("EnrollmentService", "CreateEnrollmentAsync", new { request.StudentId, request.TrainingTrackId });
 
                 var errors = new List<string>();
                 if (request.StudentId < 1)
@@ -167,34 +159,30 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for CreateEnrollmentAsync. Errors: {@Errors}", errors);
-                    return Result<EnrollmentDetailsResponse>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+
+                    _logger.LogValidationError("Create Enrollment", errors);
+                    return Result<EnrollmentDetailsResponse>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
 
                 if (track!.Status == TrackStatus.Closed)
                 {
-                    _logger.LogWarning("Track is closed and cannot accept new enrollments. TrackId: {TrackId}", track.Id);
-                    return Result<EnrollmentDetailsResponse>.ConflictResult(
-                        ResultMessages.Conflict.InvalidTrackStatus);
+                    _logger.LogBusinessLogicError($"Track is closed and cannot accept new enrollments. TrackId: {track.Id}");
+                    return Result<EnrollmentDetailsResponse>.ConflictResult(ResultMessages.Conflict.InvalidTrackStatus);
                 }
 
                 if (!request.AllowInactiveStudent && (student!.IsDeleted || !student.IsActive))
                 {
-                    _logger.LogWarning("Student is inactive or deleted. StudentId: {StudentId}", student.Id);
-                    return Result<EnrollmentDetailsResponse>.ConflictResult(
-                        "Student is inactive or deleted. Please activate the student account before enrollment.");
+                    _logger.LogBusinessLogicError($"Student is inactive or deleted. StudentId: {student.Id}");
+                    return Result<EnrollmentDetailsResponse>.ConflictResult("Student is inactive or deleted. Please activate the student account before enrollment.");
                 }
 
                 if (await _unitOfWork.Enrollments.ExistsAsync(e => e.StudentId == request.StudentId
                     && e.TrainingTrackId == request.TrainingTrackId
                     && e.Status != EnrollmentStatus.Cancelled))
                 {
-                    _logger.LogWarning("Student is already enrolled in this track. StudentId: {StudentId}, TrackId: {TrackId}",
-                        request.StudentId, request.TrainingTrackId);
-                    return Result<EnrollmentDetailsResponse>.ConflictResult(
-                        ResultMessages.Conflict.AlreadyEnrolled);
+                    _logger.LogBusinessLogicError($"Student is already enrolled in this track. StudentId: {request.StudentId}, TrackId: {request.TrainingTrackId}");
+
+                    return Result<EnrollmentDetailsResponse>.ConflictResult(ResultMessages.Conflict.AlreadyEnrolled);
                 }
 
                 var enrolledCount = (await _unitOfWork.Enrollments.GetAllAsync(
@@ -203,10 +191,9 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (enrolledCount >= track!.Capacity)
                 {
-                    _logger.LogWarning("Track capacity is full. TrackId: {TrackId}, Capacity: {Capacity}",
-                        track.Id, track.Capacity);
-                    return Result<EnrollmentDetailsResponse>.ConflictResult(
-                        ResultMessages.Conflict.InsufficientCapacity);
+                    _logger.LogBusinessLogicError($"Track capacity is full. TrackId: {track.Id}, Capacity: {track.Capacity}");
+
+                    return Result<EnrollmentDetailsResponse>.ConflictResult(ResultMessages.Conflict.InsufficientCapacity);
                 }
 
                 var enrollment = new Enrollment
@@ -235,6 +222,7 @@ namespace TrainingCenter.Application.Services.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "An error occurred while creating enrollment. Exception: {@Exception}", ex);
+                _logger.LogServiceError("EnrollmentService", "CreateEnrollmentAsync", ex);
                 return Result<EnrollmentDetailsResponse>.FailureResult(
                     ResultMessages.ServerError.DatabaseError,
                     ex.Message);
@@ -246,7 +234,7 @@ namespace TrainingCenter.Application.Services.Implementations
             await using var transaction = await _unitOfWork.BeginTransactionAsync();
             try
             {
-                _logger.LogInformation("Updating enrollment status. EnrollmentId: {EnrollmentId}, NewStatus: {Status}", id, status);
+                _logger.LogServiceCall("EnrollmentService", "UpdateEnrollmentStatusAsync", new { id, status });
 
                 var errors = new List<string>();
                 if (id < 1)
@@ -256,10 +244,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for UpdateEnrollmentStatusAsync. Errors: {@Errors}", errors);
-                    return Result<EnrollmentDetailsResponse>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogValidationError("Update Enrollment Status", errors);
+                    return Result<EnrollmentDetailsResponse>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
 
                 var enrollment = await _unitOfWork.Enrollments.GetFirstOrDefaultAsync(
@@ -268,16 +254,14 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (enrollment == null)
                 {
-                    _logger.LogInformation("Enrollment not found for status update. ID: {EnrollmentId}", id);
-                    return Result<EnrollmentDetailsResponse>.NotFoundResult(
-                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Enrollment"));
+                    _logger.LogResourceNotFound("Enrollment", id);
+                    return Result<EnrollmentDetailsResponse>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Enrollment"));
                 }
 
                 if (!IsValidStatusTransition(enrollment.Status, status))
                 {
-                    _logger.LogWarning("Invalid status transition. Current: {CurrentStatus}, Requested: {NewStatus}", enrollment.Status, status);
-                    return Result<EnrollmentDetailsResponse>.ConflictResult(
-                        $"Cannot transition from {enrollment.Status} to {status}.");
+                    _logger.LogValidationError("Enrollment Status Transition", [$"Invalid status transition. Current: {enrollment.Status}, Requested: {status}"]);
+                    return Result<EnrollmentDetailsResponse>.ConflictResult($"Cannot transition from {enrollment.Status} to {status}.");
                 }
 
                 enrollment.Status = status;
@@ -296,10 +280,8 @@ namespace TrainingCenter.Application.Services.Implementations
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                _logger.LogError(ex, "An error occurred while updating enrollment status. ID: {EnrollmentId}, Exception: {@Exception}", id, ex);
-                return Result<EnrollmentDetailsResponse>.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,
-                    ex.Message);
+                _logger.LogServiceError("EnrollmentService", "UpdateEnrollmentStatus", ex);
+                return Result<EnrollmentDetailsResponse>.FailureResult(ResultMessages.ServerError.ProcessingError, ex.Message);
             }
         }
 
@@ -307,8 +289,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching student enrollments. StudentId: {StudentId}, Page: {PageNumber}, Size: {PageSize}",
-                    studentId, pageNumber, pageSize);
+                _logger.LogServiceCall("EnrollmentService", "GetStudentEnrollmentsAsync", new { studentId, pageNumber, pageSize });
 
                 var errors = new List<string>();
                 if (studentId < 1)
@@ -322,18 +303,15 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetStudentEnrollmentsAsync. Errors: {@Errors}", errors);
-                    return Result<PagedResult<EnrollmentSummaryResponse>>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogValidationError("Get Student Enrollments", errors);
+                    return Result<PagedResult<EnrollmentSummaryResponse>>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
 
                 var student = await _unitOfWork.Students.GetFirstOrDefaultAsync(e => e.Id == studentId);
                 if (student == null)
                 {
-                    _logger.LogInformation("Student not found. ID: {StudentId}", studentId);
-                    return Result<PagedResult<EnrollmentSummaryResponse>>.NotFoundResult(
-                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Student"));
+                    _logger.LogResourceNotFound($"Student", studentId);
+                    return Result<PagedResult<EnrollmentSummaryResponse>>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Student"));
                 }
 
                 var query = await _unitOfWork.Enrollments.GetAllAsync(
@@ -349,9 +327,9 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!enrollments.Any())
                 {
-                    _logger.LogInformation("No enrollments found for student. StudentId: {StudentId}", studentId);
-                    return Result<PagedResult<EnrollmentSummaryResponse>>.NotFoundResult(
-                        ResultMessages.NotFound.RecordNotFound);
+                    _logger.LogResourceNotFound($"Student Enrollments", studentId);
+
+                    return Result<PagedResult<EnrollmentSummaryResponse>>.NotFoundResult(ResultMessages.NotFound.RecordNotFound);
                 }
 
                 var response = enrollments.Select(e => new EnrollmentSummaryResponse
@@ -377,10 +355,8 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving student enrollments. StudentId: {StudentId}, Exception: {@Exception}", studentId, ex);
-                return Result<PagedResult<EnrollmentSummaryResponse>>.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,
-                    ex.Message);
+                _logger.LogServiceError("EnrollmentService", "GetStudentEnrollments", ex);
+                return Result<PagedResult<EnrollmentSummaryResponse>>.FailureResult(ResultMessages.ServerError.ProcessingError, ex.Message);
             }
         }
 
@@ -388,8 +364,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching track students. TrackId: {TrackId}, Page: {PageNumber}, Size: {PageSize}",
-                    trackId, pageNumber, pageSize);
+                _logger.LogServiceCall("EnrollmentService", "GetTrackStudentsAsync", new { trackId, pageNumber, pageSize });
 
                 var errors = new List<string>();
                 if (trackId < 1)
@@ -403,18 +378,15 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetTrackStudentsAsync. Errors: {@Errors}", errors);
-                    return Result<PagedResult<TrackEnrollmentStudents>>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogValidationError("Get Track Students", errors);
+                    return Result<PagedResult<TrackEnrollmentStudents>>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
 
                 var track = await _unitOfWork.Tracks.GetFirstOrDefaultAsync(t => t.Id == trackId);
                 if (track == null)
                 {
-                    _logger.LogInformation("Track not found. ID: {TrackId}", trackId);
-                    return Result<PagedResult<TrackEnrollmentStudents>>.NotFoundResult(
-                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Training track"));
+                    _logger.LogResourceNotFound("Track", trackId);
+                    return Result<PagedResult<TrackEnrollmentStudents>>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Training track"));
                 }
 
                 var query = await _unitOfWork.Enrollments.GetAllAsync(
@@ -443,7 +415,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!students.Any())
                 {
-                    _logger.LogInformation("No enrolled students found in track. TrackId: {TrackId}", trackId);
+                    _logger.LogResourceNotFound("Track Students", trackId);
+
                     return Result<PagedResult<TrackEnrollmentStudents>>.NotFoundResult(
                         ResultMessages.NotFound.RecordNotFound);
                 }
@@ -462,10 +435,8 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving track students. TrackId: {TrackId}, Exception: {@Exception}", trackId, ex);
-                return Result<PagedResult<TrackEnrollmentStudents>>.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,
-                    ex.Message);
+                _logger.LogServiceError("EnrollmentService", "GetTrackStudentsAsync", ex);
+                return Result<PagedResult<TrackEnrollmentStudents>>.FailureResult(ResultMessages.ServerError.ProcessingError, ex.Message);
             }
         }
 

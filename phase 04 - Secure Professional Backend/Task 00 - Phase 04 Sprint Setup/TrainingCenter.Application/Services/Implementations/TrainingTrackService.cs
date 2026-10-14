@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Azure.Core;
+using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
 using TrainingCenter.Application.DTOs.Track.Requests;
 using TrainingCenter.Application.DTOs.Track.Responses;
@@ -27,9 +28,7 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Fetching training tracks. Page: {PageNumber}, Size: {PageSize}, Keyword: {Keyword}, Level: {Level}, Status: {Status}, InstructorId: {InstructorId}",
-                                   pageNumber, pageSize, keyword, level, status, instructorId);
-
+                _logger.LogServiceCall("TrainingTrackService", "GetTracksAsync", new { pageNumber, pageSize, keyword, level, status, instructorId });
                 var errors = new List<string>();
 
                 if (instructorId.HasValue && instructorId.Value < 1)
@@ -47,10 +46,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for GetTracksAsync. Errors: {@Errors}", errors);
-                    return Result<PagedResult<TrackDetailsResponse>>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogValidationError("Get Tracks.", errors);
+                    return Result<PagedResult<TrackDetailsResponse>>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
 
                 var query = await _unitOfWork.Tracks.GetAllAsync(t => !t.IsDeleted, includes: "Instructor,Enrollments");
@@ -73,9 +70,8 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (!tracks.Any())
                 {
-                    _logger.LogInformation("No training tracks found with the specified criteria.");
-                    return Result<PagedResult<TrackDetailsResponse>>.NotFoundResult(
-                        ResultMessages.NotFound.RecordNotFound);
+                    _logger.LogResourceNotFound("training tracks.", new { pageNumber, pageSize, keyword, level, status, instructorId });
+                    return Result<PagedResult<TrackDetailsResponse>>.NotFoundResult(ResultMessages.NotFound.RecordNotFound);
                 }
 
                 var response = tracks.Select(t => MapToTrackDetailsResponse(t)).ToList();
@@ -94,21 +90,28 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while retrieving training tracks. Exception: {@Exception}", ex);
-                return Result<PagedResult<TrackDetailsResponse>>.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,ex.Message);
+                _logger.LogServiceError("TrainingTrackService", "GetTracksAsync", ex);
+                return Result<PagedResult<TrackDetailsResponse>>.FailureResult(ResultMessages.ServerError.ProcessingError, ex.Message);
             }
         }
         public async Task<Result<TrackDetailsResponse>> GetTrackByIdAsync(int id)
         {
             try
             {
-                if (id < 1) return Result<TrackDetailsResponse>.FailureResult("Validation Errors.", "Track ID must be positive number.");
+                _logger.LogServiceCall("TrainingTrackService", "GetTrackByIdAsync", id);
+                if (id < 1)
+                {
+                    _logger.LogValidationError("Track By Id", [$"Track id is not valid ID:{id}"]);
+                    return Result<TrackDetailsResponse>.ValidationErrorResult("Validation Errors.", ["Track ID must be positive number."]);
+                }
 
                 var track = await _unitOfWork.Tracks.GetFirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted, "Instructor,Enrollments");
 
                 if (track == null)
-                    return Result<TrackDetailsResponse>.FailureResult("Track not found.", ".NotFound");
+                {
+                    _logger.LogResourceNotFound("Track", id);
+                    return Result<TrackDetailsResponse>.NotFoundResult("Track not found.");
+                }
 
 
                 return Result<TrackDetailsResponse>.SuccessResult(MapToTrackDetailsResponse(track), "Track retrieved successfully.");
@@ -116,6 +119,7 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
+                _logger.LogServiceError("TrainingTrackService", "GetTrackByIdAsync", ex);
                 return Result<TrackDetailsResponse>.FailureResult("Error retrieving track.", ex.Message);
 
             }
@@ -124,6 +128,8 @@ namespace TrainingCenter.Application.Services.Implementations
         {
             try
             {
+                _logger.LogServiceCall("TrainingTrackService", "CreateTrackAsync", request);
+
                 var errors = new List<string>();
 
                 if (string.IsNullOrWhiteSpace(request.Title)) errors.Add("Track name is required.");
@@ -139,8 +145,10 @@ namespace TrainingCenter.Application.Services.Implementations
                     errors.Add("Instructor not found.");
 
                 if (errors.Any())
-                    return Result<TrackDetailsResponse>.FailureResult("Validation errors.", errors);
-
+                {
+                    _logger.LogValidationError("Create Track", errors);
+                    return Result<TrackDetailsResponse>.ValidationErrorResult("Validation errors.", errors);
+                }
                 string code;
                 var attempts = 0;
                 do
@@ -151,8 +159,10 @@ namespace TrainingCenter.Application.Services.Implementations
                 while (await _unitOfWork.Tracks.ExistsAsync(t => t.Code == code) && attempts < 10);
 
                 if (await _unitOfWork.Tracks.ExistsAsync(t => t.Code == code))
-                    return Result<TrackDetailsResponse>.FailureResult("Validation Errors.", "Could not generate a unique track code. Please try again.");
-
+                {
+                    _logger.LogValidationError("Track Code generation.", [$"Generated Code is already used. Code:{code}"]);
+                    return Result<TrackDetailsResponse>.FailureResult("Validation Errors.", ["Could not generate a unique track code. Please try again."]);
+                }
                 var track = new TrainingTrack
                 {
                     Title = request.Title,
@@ -180,19 +190,21 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
+                _logger.LogServiceError("TrainingTrackService", "CreateTrackAsync", ex);
                 return Result<TrackDetailsResponse>.FailureResult("Error creating track.", ex.Message);
-
             }
         }
         public async Task<Result<TrackDetailsResponse>> UpdateTrackAsync(int id, UpdateTrackRequest request)
         {
             try
             {
+                _logger.LogServiceCall("TrainingTrackService", "UpdateTrackAsync", new { id, request });
+
                 var errors = new List<string>();
                 if (id < 1) errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Track ID"));
                 if (request.InstructorId < 1) errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Instructor ID"));
                 if (request.Level.HasValue && !Enum.IsDefined(typeof(TrackLevel), request.Level.Value)) errors.Add(string.Format(ResultMessages.Validation.EnumInvalid, "Track level"));
-                if (request.StartDate.HasValue != request.EndDate.HasValue) errors.Add(string.Format(ResultMessages.Validation.RequiredField,"Both Date"));
+                if (request.StartDate.HasValue != request.EndDate.HasValue) errors.Add(string.Format(ResultMessages.Validation.RequiredField, "Both Date"));
                 if (request.StartDate.HasValue && request.EndDate.HasValue && request.StartDate.Value > request.EndDate.Value) errors.Add(ResultMessages.Validation.DateRangeInvalid);
                 if (request.Capacity.HasValue && request.Capacity <= 0) errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Capacity"));
                 if (request.Price.HasValue && request.Price <= 0) errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Price"));
@@ -202,14 +214,15 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 if (track == null)
                 {
-                    _logger.LogInformation("Training track not found for update. ID: {TrackId}", id);
-                    return Result<TrackDetailsResponse>.NotFoundResult(
-                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Training track"));
+                    _logger.LogResourceNotFound("Training track", id);
+                    return Result<TrackDetailsResponse>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Training track"));
                 }
 
                 if (track.InstructorId != request.InstructorId)
+                {
+                    _logger.LogBusinessLogicError($"Track instructor id not equal the request instructor id ID:{request.InstructorId}");
                     return Result<TrackDetailsResponse>.ForbiddenResult(ResultMessages.Unauthorized.AccessDenied);
-
+                }
                 var effectiveStart = request.StartDate ?? track.StartDate;
                 var effectiveEnd = request.EndDate ?? track.EndDate;
                 if (effectiveStart >= effectiveEnd)
@@ -218,10 +231,8 @@ namespace TrainingCenter.Application.Services.Implementations
                     errors.Add("Capacity cannot be less than the number of currently enrolled students.");
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for UpdateTrackAsync. Errors: {@Errors}", errors);
-                    return Result<TrackDetailsResponse>.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogValidationError("Update Track.", errors);
+                    return Result<TrackDetailsResponse>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
 
                 if (!string.IsNullOrWhiteSpace(request.Title))
@@ -247,48 +258,44 @@ namespace TrainingCenter.Application.Services.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while updating training track. ID: {TrackId}, Exception: {@Exception}", id, ex);
-                return Result<TrackDetailsResponse>.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,
-                    ex.Message);
+                _logger.LogServiceError("TrainingTrackService", "UpdateTrackAsync", ex);
+                return Result<TrackDetailsResponse>.FailureResult(ResultMessages.ServerError.ProcessingError, ex.Message);
             }
         }
-        public async Task<Result> DeleteTrackAsync(int id, int InstructorId)
+        public async Task<Result> DeleteTrackAsync(int id, int instructorId)
         {
             try
             {
-
+                _logger.LogServiceCall("TrainingTrackService", "DeleteTrackAsync", new { id, instructorId });
                 var errors = new List<string>();
                 if (id < 1) errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Track ID"));
-                if (InstructorId < 1) errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Instructor ID"));
+                if (instructorId < 1) errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Instructor ID"));
 
                 if (errors.Any())
                 {
-                    _logger.LogWarning("Validation failed for DeleteTrackAsync. Errors: {@Errors}", errors);
-                    return Result.ValidationErrorResult(
-                        "Validation errors occurred. Please review the details below.",
-                        errors);
+                    _logger.LogValidationError("Delete Track.", errors);
+                    return Result.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
                 }
                 var track = await _unitOfWork.Tracks
                     .GetFirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted, "Enrollments");
 
                 if (track == null)
                 {
-                    _logger.LogInformation("Training track not found for deletion. ID: {TrackId}", id);
-                    return Result.NotFoundResult(
-                        string.Format(ResultMessages.NotFound.ResourceNotFound, "Training track"));
+                    _logger.LogResourceNotFound("Training track", id);
+                    return Result.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Training track"));
                 }
 
-                if (track.InstructorId != InstructorId)
+                if (track.InstructorId != instructorId)
+                {
+                    _logger.LogBusinessLogicError($"Track instructor id not equal the request instructor id ID:{instructorId}");
                     return Result.ForbiddenResult(ResultMessages.Unauthorized.AccessDenied);
-
+                }
 
                 var activeEnrollments = track.Enrollments?.Count(e => e.Status == EnrollmentStatus.Active) ?? 0;
                 if (activeEnrollments > 0)
                 {
-                    _logger.LogWarning("Cannot delete track with active enrollments. TrackId: {TrackId}, ActiveEnrollments: {Count}", id, activeEnrollments);
-                    return Result.ConflictResult(
-                        "Cannot delete a track that has active or draft enrollments. Please close all enrollments first.");
+                    _logger.LogBusinessLogicError($"Cannot delete track with active enrollments. TrackId: {id}, ActiveEnrollments: {activeEnrollments}");
+                    return Result.ConflictResult("Cannot delete a track that has active or draft enrollments. Please close all enrollments first.");
                 }
 
                 track.IsDeleted = true;
@@ -297,53 +304,47 @@ namespace TrainingCenter.Application.Services.Implementations
 
                 _logger.LogInformation("Successfully deleted training track. ID: {TrackId}", id);
 
-                return Result.SuccessResult(
-                    string.Format(ResultMessages.Success.ResourceDeleted, "Training track"));
+                return Result.SuccessResult(string.Format(ResultMessages.Success.ResourceDeleted, "Training track"));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while deleting training track. ID: {TrackId}, Exception: {@Exception}", id, ex);
-                return Result.FailureResult(
-                    ResultMessages.ServerError.ProcessingError,
-                    ex.Message);
+                _logger.LogServiceError("TrainingTrackService", "DeleteTrackAsync", ex);
+                return Result.FailureResult(ResultMessages.ServerError.ProcessingError, ex.Message);
             }
         }
         public async Task<Result> AssignInstructorToTrackAsync(int id, int instructorId)
         {
+            _logger.LogServiceCall("TrainingTrackService", "AssignInstructorToTrackAsync", new { id, instructorId });
             var errors = new List<string>();
             if (id < 1) errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Track ID"));
             if (instructorId < 1) errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Instructor ID"));
 
             if (errors.Any())
             {
-                _logger.LogWarning("Validation failed for Assign Instructor To Track. Errors: {@Errors}", errors);
-                return Result.ValidationErrorResult(
-                    "Validation errors occurred. Please review the details below.",
-                    errors);
+                _logger.LogValidationError("Assign Instructor To Track.", errors);
+                return Result.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
             }
             var track = await _unitOfWork.Tracks.GetFirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted);
 
             if (track == null)
             {
-                _logger.LogInformation("Training track not found for assignment. ID: {TrackId}", id);
-                return Result.NotFoundResult(
-                    string.Format(ResultMessages.NotFound.ResourceNotFound, "Training track"));
+                _logger.LogResourceNotFound("Training track", id);
+                return Result.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Training track"));
             }
             var instructor = await _unitOfWork.Users.GetByIdAsync(instructorId);
             if (instructor == null)
             {
-                _logger.LogInformation("Instructor not found for assignment. ID: {InstructorId}", instructorId);
-                return Result.NotFoundResult(
-                    string.Format(ResultMessages.NotFound.ResourceNotFound, "Instructor"));
+                _logger.LogResourceNotFound("Instructor", instructorId);
+                return Result.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Instructor"));
             }
             if (!instructor.IsActive)
             {
-                _logger.LogInformation("Instructor is inactive for assignment. ID: {InstructorId}", instructorId);
+                _logger.LogBusinessLogicError($"Instructor is inactive for assignment. ID: {instructorId}");
                 return Result.ConflictResult(ResultMessages.Conflict.InvalidUserStatus);
             }
             if (track.InstructorId == instructorId)
             {
-                _logger.LogInformation("Instructor is already assigned. ID: {InstructorId}", instructorId);
+                _logger.LogBusinessLogicError("Instructor is already assigned. ID: {instructorId}");
                 return Result.ConflictResult(ResultMessages.Conflict.AlreadyAssigned);
             }
             track.InstructorId = instructorId;
@@ -355,37 +356,44 @@ namespace TrainingCenter.Application.Services.Implementations
         }
         public async Task<Result<BasicTrackSessionResponse>> CreateTrackSessionAsync(int trackId, CreateTrackSessionRequest request)
         {
+            _logger.LogServiceCall("TrainingTrackService", "CreateTrackSessionAsync", new { trackId, request });
+
             var errors = TrackValidation.ValidateTrackSession(request);
             if (trackId < 1) errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Track ID"));
             if (errors.Any())
+            {
+                _logger.LogValidationError("Create track session.", errors);
                 return Result<BasicTrackSessionResponse>.ValidationErrorResult(ResultMessages.Validation.NonNegativeNumber, errors);
-
+            }
             var track = await _unitOfWork.Tracks.GetFirstOrDefaultAsync(t => t.Id == trackId && !t.IsDeleted);
 
             if (track == null)
             {
-                _logger.LogInformation("Training track not found for deletion. ID: {TrackId}", trackId);
-                return Result<BasicTrackSessionResponse>.NotFoundResult(
-                    string.Format(ResultMessages.NotFound.ResourceNotFound, "Training track"));
+                _logger.LogResourceNotFound("Training track.", trackId);
+                return Result<BasicTrackSessionResponse>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Training track"));
             }
             if (!track.IsActive)
             {
-                _logger.LogInformation("Training track not active for session creation. ID: {TrackId}", trackId);
-                return Result<BasicTrackSessionResponse>.NotFoundResult(
-                    ResultMessages.Conflict.InvalidTrackStatus);
+                _logger.LogBusinessLogicError($"Training track not active for session creation. ID: {trackId}");
+                return Result<BasicTrackSessionResponse>.NotFoundResult(ResultMessages.Conflict.InvalidTrackStatus);
             }
             var instructor = await _unitOfWork.Users.GetByIdAsync(request.InstructorId!.Value);
 
             if (instructor == null)
+            {
+                _logger.LogResourceNotFound("Instructor", request.InstructorId);
                 return Result<BasicTrackSessionResponse>.NotFoundResult(ResultMessages.NotFound.InstructorNotFound);
+            }
             if (!instructor.IsActive)
             {
-                _logger.LogInformation("Instructor is inactive for session creation. ID: {InstructorId}", instructor.Id);
+                _logger.LogBusinessLogicError($"Instructor is inactive for session creation. ID: {instructor.Id}");
                 return Result<BasicTrackSessionResponse>.ConflictResult(ResultMessages.Conflict.InvalidUserStatus);
             }
             if (track.InstructorId != request.InstructorId)
+            {
+                _logger.LogBusinessLogicError($"Track instructor id not equal the request instructor id ID:{request.InstructorId}");
                 return Result<BasicTrackSessionResponse>.ForbiddenResult(ResultMessages.Unauthorized.AccessDenied);
-
+            }
             var session = new TrackSession
             {
                 Title = request.Title,
@@ -406,41 +414,44 @@ namespace TrainingCenter.Application.Services.Implementations
                 Title = session.Title,
                 MeetingLink = session.MeetingLink,
                 SessionDate = session.SessionDate
-            },string.Format(ResultMessages.Success.ResourceCreated, "Training track"),201);
+            }, string.Format(ResultMessages.Success.ResourceCreated, "Training track"), 201);
         }
         public async Task<Result<DetailedTrackSessionResponse>> UpdateTrackSessionAsync(int sessionId, UpdateSessionRequest request)
         {
+            _logger.LogServiceCall("TrainingTrackService", "UpdateTrackSessionAsync", new { sessionId, request });
             var errors = new List<string>();
             if (sessionId < 1) errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Track ID"));
             if (request.InstructorId < 1) errors.Add(string.Format(ResultMessages.Validation.PositiveNumber, "Instructor ID"));
             if (request.MeetingLink != null && !TrackValidation.TryValidateUrl(request.MeetingLink, out var error)) errors.Add(error!);
             if (errors.Any())
             {
-                _logger.LogWarning("Validation failed for Update Track Session. Errors: {@Errors}", errors);
-                return Result<DetailedTrackSessionResponse>.ValidationErrorResult(
-                    "Validation errors occurred. Please review the details below.",
-                    errors);
+                _logger.LogValidationError("Update Track Session.", errors);
+                return Result<DetailedTrackSessionResponse>.ValidationErrorResult("Validation errors occurred. Please review the details below.", errors);
             }
             var session = await _unitOfWork.TrackSessions.GetFirstOrDefaultAsync(t => t.Id == sessionId);
 
             if (session == null)
             {
-                _logger.LogInformation("Training track session not found for update. ID: {SessionId}", sessionId);
-                return Result<DetailedTrackSessionResponse>.NotFoundResult(
-                    string.Format(ResultMessages.NotFound.ResourceNotFound, "Training track session"));
+                _logger.LogResourceNotFound("Training track session", sessionId);
+                return Result<DetailedTrackSessionResponse>.NotFoundResult(string.Format(ResultMessages.NotFound.ResourceNotFound, "Training track session"));
             }
             var instructor = await _unitOfWork.Users.GetByIdAsync(request.InstructorId!);
 
             if (instructor == null)
+            {
+                _logger.LogResourceNotFound("Instructor", request.InstructorId);
                 return Result<DetailedTrackSessionResponse>.NotFoundResult(ResultMessages.NotFound.InstructorNotFound);
+            }
             if (!instructor.IsActive)
             {
-                _logger.LogInformation("Instructor is inactive for session update. ID: {InstructorId}", instructor.Id);
+                _logger.LogBusinessLogicError($"Instructor is inactive for session update. ID: {instructor.Id}");
                 return Result<DetailedTrackSessionResponse>.ConflictResult(ResultMessages.Conflict.InvalidUserStatus);
             }
             if (session.CreatedByInstructorId != request.InstructorId)
+            {
+                _logger.LogBusinessLogicError($"The session instructor creator is not the requested instructor. ID:{request.InstructorId}");
                 return Result<DetailedTrackSessionResponse>.ForbiddenResult(ResultMessages.Unauthorized.AccessDenied);
-
+            }
             session.Title = request.Title ?? session.Title;
             session.Description = request.Description ?? session.Description;
             session.MeetingLink = request.MeetingLink ?? session.MeetingLink;
@@ -462,32 +473,42 @@ namespace TrainingCenter.Application.Services.Implementations
                     FullName = instructor.FullName,
                     Email = instructor.Email
                 }
-            },ResultMessages.Success.ResourceUpdated);
+            }, ResultMessages.Success.ResourceUpdated);
         }
         public async Task<Result<TrackProgressResponse>> GetTrackProgressAsync(int trackId, int instructorId)
         {
+            _logger.LogServiceCall("TrainingTrackService", "GetTrackProgressAsync", new { trackId, instructorId });
             if (trackId < 1 || instructorId < 1)
-                return Result<TrackProgressResponse>.ValidationErrorResult(string.Format(ResultMessages.Validation.PositiveNumber,"ID"),null!);
-            
-            var track = await _unitOfWork.Tracks.GetFirstOrDefaultAsync(t => t.Id == trackId && !t.IsDeleted,includes:"Enrollments");
+            {
+                _logger.LogValidationError("Get track progress", [$"ID not valid. Track ID:{trackId} , Instructor ID:{instructorId}"]);
+                return Result<TrackProgressResponse>.ValidationErrorResult(string.Format(ResultMessages.Validation.PositiveNumber, "ID"), null!);
+            }
+            var track = await _unitOfWork.Tracks.GetFirstOrDefaultAsync(t => t.Id == trackId && !t.IsDeleted, includes: "Enrollments");
 
             if (track == null)
+            {
+                _logger.LogResourceNotFound("Track", trackId);
                 return Result<TrackProgressResponse>.NotFoundResult(ResultMessages.NotFound.TrackNotFound);
+            }
             if (!track.IsActive)
+            {
+                _logger.LogBusinessLogicError($"Track is not active to get its progress TrackID:{trackId}");
                 return Result<TrackProgressResponse>.ConflictResult(ResultMessages.Conflict.InvalidTrackStatus);
-
-           if (track.InstructorId != instructorId)
+            }
+            if (track.InstructorId != instructorId)
+            {
+                _logger.LogBusinessLogicError($"Track instructor id not equal the request instructor id ID:{instructorId}");
                 return Result<TrackProgressResponse>.ForbiddenResult(ResultMessages.Unauthorized.AccessDenied);
-
-           var enrollmentCount = track.Enrollments?.Count ?? 0;
-           var progressPercentage = track.Enrollments?.Sum(e=>e.ProgressPercentage) ?? 0;
+            }
+            var enrollmentCount = track.Enrollments?.Count ?? 0;
+            var progressPercentage = track.Enrollments?.Sum(e => e.ProgressPercentage) ?? 0;
             _logger.LogInformation("Successfully get training track progress. ID: {TrackId}", trackId);
             return Result<TrackProgressResponse>.SuccessResult(new TrackProgressResponse
             {
                 TrackTitle = track.Title,
                 EnrollmentCount = enrollmentCount,
                 ProgressPercentage = progressPercentage
-            },ResultMessages.Success.ResourceRetrieved);
+            }, ResultMessages.Success.ResourceRetrieved);
 
         }
 
