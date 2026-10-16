@@ -119,6 +119,7 @@ List<int> numbers = new List<int>(); //Dynamic size
 ### 9. When would you use Dictionary?
 **Answer:**
 A Dictionary stores data as key-value pairs and uses hashing to locate values by their keys. It provides average O(1) lookup time, which makes it useful when we frequently need to retrieve a value using a unique key. In comparison, searching for an element in a list by its value typically takes O(n) time.
+
 ---
 
 ### 10. What is LINQ used for?
@@ -169,16 +170,19 @@ return employees.Skip((pageNumber - 1)*pageSize).Take(pageSize).ToList();
 ### 14. What is a primary key?
 **Answer:**
 A primary key is a column or set of columns in a database table that uniquely identifies each row. It cannot be null and must be unique.
+
 ---
 
 ### 15. What is a foreign key?
 **Answer:**
 A foreign key is a column that creates a link between two tables. It refers to the primary key of another table, enforcing referential integrity.
+
 ---
 
 ### 16. What is a one-to-many relationship?
 **Answer:**
 A relationship where one record in Table A relates to many records in Table B, but a record in Table B relates to only one record in Table A.
+
 ---
 
 ### 17. Why do we use JOIN?
@@ -195,19 +199,23 @@ WHERE c.Name = N'Fantasy';
 ### 18. What is the difference between table and entity?
 **Answer:**
 A Table is a physical database structure (rows and columns). An Entity is a C# class in code that represents that table (ORM mapping).
+
 ---
 ### 19. Why do we use GitHub?
 **Answer:**
 GitHub is a cloud-based platform for version control using Git. It allows for collaboration, code backup, tracking changes, and managing project workflows.
+
 ---
 ### 20. What makes a README useful?
 **Answer:**
 A README explains what the project is, how to install it, and how to run it. It is the entry point for anyone looking at the code.
+
 ---
 
 ### 21. Why are multiple commits better than one final commit?
 **Answer:**
 Multiple commits provide a detailed history of changes. If a bug is introduced, it's easier to find which change caused it. It also allows for better collaboration and code reviews.
+
 ---
 
 ### 22. Why is professional delivery important?
